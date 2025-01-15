@@ -4,6 +4,13 @@ import pool from '@/lib/db';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import crypto from 'crypto';
 
+interface Perfil {
+  id: string;
+  nome: string;
+  descricao: string;
+  permissoes: string[];
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   switch (req.method) {
     case 'GET':
