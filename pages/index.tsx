@@ -1,114 +1,1083 @@
-import Image from "next/image";
-import { Geist, Geist_Mono } from "next/font/google";
+//@ts-nocheck
+import dynamic from 'next/dynamic';
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useState, useEffect } from "react";
+import { useRouter } from 'next/router';
+import axios from 'axios';
+import { toast } from 'react-hot-toast';
+import { useAuth } from "@/hooks/useAuth";
+import { X } from "lucide-react";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+interface PaymentMethod {
+  id: string;
+  method: string;
+  amount: number;
+  clientId?: string;
+}
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+interface Discount {
+  type: 'percentage' | 'fixed';
+  value: number;
+}
 
-export default function Home() {
+interface Product {
+  id: string;
+  codigo: string;
+  nome: string;
+  preco_venda: number;
+  estoque: number;
+  categoria_id?: string;
+  categoria_nome?: string;
+  preco_custo?: number;
+  data_validade?: string;
+}
+
+interface SaleItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  price: number;
+  total: number;
+}
+
+interface Sale {
+  id: string;
+  data: string;
+  valor_total: number;
+  valor_final: number;
+  desconto: number;
+  status: string;
+  vendedor_nome: string;
+  pagamentos: {
+    id: string;
+    forma_pagamento: string;
+    valor: number;
+  }[];
+}
+
+interface CartItem {
+  productId: string;
+  code: string;
+  name: string;
+  quantity: number;
+  price: number;
+  total: number;
+}
+
+// Simulação de lista de clientes (depois você pode integrar com seu backend)
+const clients = [
+  { id: "1", name: "João da Silva" },
+  { id: "2", name: "Maria Oliveira" },
+  { id: "3", name: "Pedro Santos" },
+  { id: "4", name: "Ana Costa" },
+];
+
+// Simulação de produtos
+const products: Product[] = [
+  { id: "1", codigo: "001", nome: "Coca-Cola 350ml", preco_venda: 4.50, estoque: 50 },
+  { id: "2", codigo: "002", nome: "Água Mineral 500ml", preco_venda: 2.50, estoque: 60 },
+  { id: "3", codigo: "003", nome: "Salgadinho Doritos", preco_venda: 8.90, estoque: 30 },
+  { id: "4", codigo: "004", nome: "Chocolate Lacta", preco_venda: 6.50, estoque: 45 },
+  { id: "5", codigo: "005", nome: "Cerveja Heineken", preco_venda: 7.90, estoque: 100 },
+  // Adicione mais produtos conforme necessário
+];
+
+// Adicione os dados simulados de vendas
+const sales: Sale[] = [
+  {
+    id: "1",
+    date: new Date("2024-01-20 14:30"),
+    items: [
+      { productId: "1", productName: "Coca-Cola 350ml", quantity: 2, price: 4.50, total: 9.00 }
+    ],
+    total: 9.00,
+    paymentMethods: [{ method: "dinheiro", amount: 9.00 }],
+    seller: "João Silva"
+  },
+  {
+    id: "2",
+    date: new Date("2024-01-20 15:45"),
+    items: [
+      { productId: "2", productName: "Água Mineral 500ml", quantity: 1, price: 2.50, total: 2.50 },
+      { productId: "3", productName: "Salgadinho Doritos", quantity: 1, price: 8.90, total: 8.90 }
+    ],
+    total: 11.40,
+    paymentMethods: [{ method: "cartao_credito", amount: 11.40 }],
+    seller: "Maria Oliveira"
+  },
+  {
+    id: "3",
+    date: new Date("2024-01-20 16:20"),
+    items: [
+      { productId: "4", productName: "Chocolate Lacta", quantity: 2, price: 6.50, total: 13.00 }
+    ],
+    total: 11.70,
+    discount: 1.30,
+    paymentMethods: [{ method: "pix", amount: 11.70 }],
+    seller: "João Silva"
+  },
+  {
+    id: "4",
+    date: new Date("2024-01-20 17:00"),
+    items: [
+      { productId: "5", productName: "Cerveja Heineken", quantity: 6, price: 7.90, total: 47.40 }
+    ],
+    total: 47.40,
+    paymentMethods: [
+      { method: "dinheiro", amount: 20.00 },
+      { method: "pix", amount: 27.40 }
+    ],
+    seller: "Maria Oliveira"
+  }
+];
+
+// Adicione a função formatPaymentMethods
+const formatPaymentMethods = (methods: { method: string; amount: number }[]) => {
+  return methods.map(m => {
+    const methodNames: { [key: string]: string } = {
+      dinheiro: "Dinheiro",
+      cartao_credito: "Crédito",
+      cartao_debito: "Débito",
+      pix: "PIX",
+      fiado: "Fiado"
+    };
+    return `${methodNames[m.method]}: R$ ${m.amount.toFixed(2)}`;
+  }).join(" + ");
+};
+
+// Funções de formatação
+const formatPaymentMethod = (method: string) => {
+  const methods: { [key: string]: string } = {
+    dinheiro: "Dinheiro",
+    cartao_credito: "Crédito",
+    cartao_debito: "Débito",
+    pix: "PIX",
+    fiado: "Fiado"
+  };
+  return methods[method] || method;
+};
+
+const formatStatus = (status: string) => {
+  const statuses: { [key: string]: string } = {
+    concluida: "Concluída",
+    cancelada: "Cancelada",
+    pendente: "Pendente"
+  };
+  return statuses[status] || status;
+};
+
+const PAYMENT_OPTIONS = [
+  { key: '1', method: 'dinheiro', label: '1 - Dinheiro' },
+  { key: '2', method: 'cartao_credito', label: '2 - Cartão de Crédito' },
+  { key: '3', method: 'cartao_debito', label: '3 - Cartão de Débito' },
+  { key: '4', method: 'pix', label: '4 - PIX' },
+  { key: '5', method: 'fiado', label: '5 - Fiado' },
+];
+
+// Componente PDV
+function PDVComponent() {
+  const router = useRouter();
+  const { user, hasPermission, logout } = useAuth();
+  
+  // Todos os estados
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [discount, setDiscount] = useState<Discount>({ type: 'fixed', value: 0 });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [activePaymentIndex, setActivePaymentIndex] = useState(0);
+  const [isFinalizingOpen, setIsFinalizingOpen] = useState(false);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [quantity, setQuantity] = useState<number>(1);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [barcodeInput, setBarcodeInput] = useState("");
+  const [caixaAtual, setCaixaAtual] = useState<string | null>(null);
+  const [isOpenCaixaDialog, setIsOpenCaixaDialog] = useState(false);
+  const [ultimasVendas, setUltimasVendas] = useState<Sale[]>([]);
+  const [isNoCaixaDialogOpen, setIsNoCaixaDialogOpen] = useState(false);
+
+  // Funções auxiliares
+  const addPaymentMethod = () => {
+    const newId = `payment-${paymentMethods.length + 1}`;
+    setPaymentMethods([...paymentMethods, { id: newId, method: '', amount: 0 }]);
+  };
+
+  const removePaymentMethod = (id: string) => {
+    setPaymentMethods(paymentMethods.filter(method => method.id !== id));
+  };
+
+  const updatePaymentMethod = (id: string, field: 'method' | 'amount' | 'clientId', value: string | number) => {
+    setPaymentMethods(paymentMethods.map(method => 
+      method.id === id ? { ...method, [field]: value } : method
+    ));
+  };
+
+  // useEffects
+  useEffect(() => {
+    if (user && !hasPermission('pdv')) {
+      toast.error('Você não tem permissão para acessar o PDV');
+      router.replace('/login');
+    }
+  }, [user, hasPermission, router]);
+
+  useEffect(() => {
+    if (isSearchOpen) {
+      fetchProducts();
+    }
+  }, [isSearchOpen]);
+
+  // Mover os cálculos para fora do return
+  const calculateSubtotal = () => {
+    return cartItems.reduce((sum, item) => sum + item.total, 0);
+  };
+
+  const discountAmount = discount.type === 'percentage' 
+    ? (calculateSubtotal() * discount.value) / 100 
+    : discount.value;
+
+  const totalSale = calculateSubtotal() - discountAmount;
+  const totalPaid = paymentMethods.reduce((sum, method) => sum + (method.amount || 0), 0);
+  const remaining = totalSale - totalPaid;
+
+  // Handler global de teclas
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      if (e.key === 'F2') {
+        e.preventDefault();
+        
+        // Se o modal já estiver aberto
+        if (isFinalizingOpen) {
+          // Verifica se tem algum método de pagamento
+          if (paymentMethods.length === 0) {
+            addPaymentMethod();
+            return;
+          }
+          // Verifica se os valores estão corretos antes de confirmar
+          const currentTotalPaid = paymentMethods.reduce((sum, method) => sum + (method.amount || 0), 0);
+          const currentTotalSale = calculateSubtotal() - discountAmount;
+
+          if (currentTotalPaid < currentTotalSale) {
+            toast.error('Valor pago é menor que o total da venda');
+            return;
+          }
+          await confirmarVenda();
+        } else {
+          // Se o modal estiver fechado
+          // Verificar carrinho primeiro
+          if (cartItems.length === 0) {
+            toast.error('Adicione produtos ao carrinho');
+            return;
+          }
+
+          // Verificar caixa
+          if (!caixaAtual) {
+            setIsNoCaixaDialogOpen(true);
+            return;
+          }
+
+          // Se chegou aqui, temos itens no carrinho e caixa aberto
+          setIsFinalizingOpen(true); // Abre o modal
+          addPaymentMethod(); // Adiciona o primeiro método de pagamento
+        }
+      }
+      
+      if (e.key === 'F4') {
+        e.preventDefault();
+        cancelarVenda();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFinalizingOpen, caixaAtual, cartItems, paymentMethods, discount]);
+
+  // Verificar caixa ao montar o componente
+  useEffect(() => {
+    const verificarCaixa = async () => {
+      try {
+        const response = await axios.get('/api/caixas/atual');
+        if (response.data) {
+          setCaixaAtual(response.data.id);
+        } else {
+          setIsNoCaixaDialogOpen(true);
+        }
+      } catch (error) {
+        setIsNoCaixaDialogOpen(true);
+      }
+    };
+
+    if (user) {
+      verificarCaixa();
+    }
+  }, [user]);
+
+  // Função para buscar últimas vendas
+  const fetchUltimasVendas = async () => {
+    try {
+      const response = await axios.get('/api/vendas/ultimas');
+      setUltimasVendas(response.data);
+    } catch (error) {
+      console.error('Erro ao buscar últimas vendas:', error);
+    }
+  };
+
+  // Buscar últimas vendas ao montar o componente e após cada venda
+  useEffect(() => {
+    fetchUltimasVendas();
+  }, []);
+
+  // Se não houver usuário, não renderiza nada
+  if (!user) return null;
+
+  // Resto das funções e retorno do JSX
+  // Função para buscar todos os produtos
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get('/api/produtos');
+      setProducts(response.data);
+    } catch (error) {
+      toast.error('Erro ao carregar produtos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Função para buscar produto por código
+  const findProductByBarcode = async (code: string) => {
+    try {
+      const response = await axios.get(`/api/produtos?codigo=${code}`);
+      if (response.data && response.data.length > 0) {
+        const productResponse = await axios.get(`/api/produtos/${response.data[0].id}`);
+        const product = productResponse.data;
+        
+        // Adiciona o produto ao carrinho
+        addToCart(product);
+        setBarcodeInput(""); // Limpa o input
+      } else {
+        toast.error('Produto não encontrado');
+      }
+    } catch (error) {
+      toast.error('Erro ao buscar produto');
+    }
+  };
+
+  // Handler para input de código de barras
+  const handleBarcodeSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && barcodeInput) {
+      findProductByBarcode(barcodeInput);
+    }
+  };
+
+  // Produtos filtrados para a busca
+  const filteredProducts = products.filter(product => 
+    product.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.codigo.includes(searchTerm) ||
+    (product.categoria_nome?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+  );
+
+  // Atalhos dentro do modal de finalização
+  const handlePaymentKeyDown = (e: React.KeyboardEvent, paymentId: string, index: number) => {
+    switch (e.key) {
+      case 'Enter':
+        if (!paymentMethods[index].method) {
+          e.preventDefault();
+          // Foca no select de forma de pagamento
+          document.getElementById(`payment-method-${paymentId}`)?.click();
+        }
+        break;
+      case 'Tab':
+        if (!e.shiftKey && index === paymentMethods.length - 1) {
+          e.preventDefault();
+          addPaymentMethod();
+          setActivePaymentIndex(index + 1);
+        }
+        break;
+      case 'Delete':
+        if (e.ctrlKey) {
+          e.preventDefault();
+          removePaymentMethod(paymentId);
+          setActivePaymentIndex(Math.max(0, index - 1));
+        }
+        break;
+    }
+  };
+
+  // Função para sugerir valor restante
+  const suggestRemainingAmount = (paymentId: string) => {
+    const currentPayment = paymentMethods.find(p => p.id === paymentId);
+    if (currentPayment) {
+      updatePaymentMethod(paymentId, 'amount', remaining + (currentPayment.amount || 0));
+    }
+  };
+
+  // Função para adicionar produto ao carrinho
+  const addToCart = (product: Product) => {
+    const existingItem = cartItems.find(item => item.productId === product.id);
+    
+    if (existingItem) {
+      setCartItems(cartItems.map(item =>
+        item.productId === product.id
+          ? { 
+              ...item, 
+              quantity: item.quantity + quantity, 
+              total: (item.quantity + quantity) * Number(product.preco_venda)
+            }
+          : item
+      ));
+    } else {
+      setCartItems([...cartItems, {
+        productId: product.id,
+        code: product.codigo,
+        name: product.nome,
+        quantity: quantity,
+        price: Number(product.preco_venda),
+        total: quantity * Number(product.preco_venda)
+      }]);
+    }
+
+    setQuantity(1);
+    setIsSearchOpen(false);
+    setSearchTerm("");
+  };
+
+  // Função para remover item do carrinho
+  const removeFromCart = (productId: string) => {
+    setCartItems(cartItems.filter(item => item.productId !== productId));
+  };
+
+  // Função para atualizar quantidade de um item
+  const updateQuantity = (productId: string, newQuantity: number) => {
+    if (newQuantity < 1) return;
+
+    setCartItems(cartItems.map(item =>
+      item.productId === productId
+        ? { ...item, quantity: newQuantity, total: newQuantity * item.price }
+        : item
+    ));
+  };
+
+  // Nova função para confirmar a venda dentro do modal
+  const confirmarVenda = async () => {
+    if (totalPaid < totalSale) {
+      toast.error('Valor pago é menor que o total da venda');
+      return;
+    }
+
+    if (totalPaid > totalSale) {
+      toast.error('Valor pago é maior que o total da venda');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const saleData = {
+        items: cartItems,
+        total: calculateSubtotal(),
+        discount: discountAmount,
+        paymentMethods,
+        seller_id: user?.id,
+        client_id: paymentMethods.find(p => p.method === 'fiado')?.clientId,
+        caixa_id: caixaAtual
+      };
+
+      await axios.post('/api/vendas', saleData);
+      
+      toast.success('Venda finalizada com sucesso');
+      setCartItems([]);
+      setPaymentMethods([]);
+      setDiscount({ type: 'fixed', value: 0 });
+      setIsFinalizingOpen(false);
+      
+      // Recarrega as últimas vendas
+      fetchUltimasVendas();
+    } catch (error) {
+      console.error('Erro ao finalizar venda:', error);
+      toast.error('Erro ao finalizar venda');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Função para cancelar venda
+  const cancelarVenda = () => {
+    if (cartItems.length === 0) {
+      toast.error('Não há itens no carrinho');
+      return;
+    }
+
+    setCartItems([]);
+    setPaymentMethods([]);
+    setDiscount({ type: 'fixed', value: 0 });
+    toast.success('Venda cancelada');
+
+    // Focar no input de código de barras
+    setTimeout(() => {
+      const barcodeInput = document.querySelector('input[placeholder="Código de barras..."]') as HTMLInputElement;
+      if (barcodeInput) {
+        barcodeInput.focus();
+      }
+    }, 100);
+  };
+
   return (
-    <div
-      className={`${geistSans.variable} ${geistMono.variable} grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]`}
-    >
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              pages/index.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen bg-gray-100 p-4">
+      {/* Header */}
+      <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow mb-4">
+        <div className="flex items-center gap-4">
+          <img 
+            src="https://i.imgur.com/oLO8FA3.png"
+            alt="Logo"
+            className="w-12 h-12 rounded-full object-cover"
+          />
+          <h1 className="text-2xl font-bold">PDV</h1>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        <div className="flex gap-2">
+          {hasPermission('estoque') && (
+            <Button variant="outline" onClick={() => router.push('/estoque')}>
+              Estoque
+            </Button>
+          )}
+          
+          {hasPermission('financeiro') && (
+            <Button variant="outline" onClick={() => router.push('/caixas')}>
+              Caixas
+            </Button>
+          )}
+          
+          {hasPermission('vendas') && (
+            <Button variant="outline" onClick={() => router.push('/vendas')}>
+              Vendas
+            </Button>
+          )}
+          
+          {hasPermission('compras') && (
+            <Button variant="outline" onClick={() => router.push('/compras')}>
+              Compras
+            </Button>
+          )}
+          
+          {hasPermission('fornecedores') && (
+            <Button variant="outline" onClick={() => router.push('/fornecedores')}>
+              Fornecedores
+            </Button>
+          )}
+          
+          {hasPermission('configuracoes') && (
+            <Button variant="outline" onClick={() => router.push('/configuracoes')}>
+              Configurações
+            </Button>
+          )}
+
+          {/* Botão de Logout */}
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              logout();
+              router.replace('/login');
+            }}
+          >
+            Sair
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[1fr_400px] gap-4">
+        {/* Main Content */}
+        <Card className="p-4">
+          <div className="flex gap-2 mb-4">
+            <Input 
+              placeholder="Código de barras..." 
+              value={barcodeInput}
+              onChange={(e) => setBarcodeInput(e.target.value)}
+              onKeyDown={handleBarcodeSubmit}
+              className="flex-1"
+              autoFocus
+            />
+            <Button onClick={() => setIsSearchOpen(true)}>
+              Buscar Produtos
+            </Button>
+          </div>
+
+          <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
+            <DialogContent className="sm:max-w-[800px] h-[600px]">
+              <DialogHeader>
+                <DialogTitle>Buscar Produtos</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <Input
+                  placeholder="Digite o nome, código ou categoria do produto..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  autoFocus
+                />
+                <ScrollArea className="h-[400px] rounded-md border p-4">
+                  {loading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-lg">Carregando...</div>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Código</TableHead>
+                          <TableHead>Produto</TableHead>
+                          <TableHead>Categoria</TableHead>
+                          <TableHead>Preço</TableHead>
+                          <TableHead>Estoque</TableHead>
+                          <TableHead>Quantidade</TableHead>
+                          <TableHead></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredProducts.map((product) => (
+                          <TableRow key={product.id}>
+                            <TableCell>{product.codigo}</TableCell>
+                            <TableCell className="font-medium">{product.nome}</TableCell>
+                            <TableCell>{product.categoria_nome || '-'}</TableCell>
+                            <TableCell>R$ {Number(product.preco_venda).toFixed(2)}</TableCell>
+                            <TableCell>{product.estoque}</TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                min="1"
+                                max={product.estoque}
+                                value={quantity}
+                                onChange={(e) => setQuantity(Number(e.target.value))}
+                                className="w-20"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Button 
+                                size="sm"
+                                onClick={() => {
+                                  addToCart(product);
+                                  setIsSearchOpen(false);
+                                  setSearchTerm("");
+                                }}
+                                disabled={product.estoque < 1}
+                              >
+                                Adicionar
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {filteredProducts.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center text-muted-foreground">
+                              Nenhum produto encontrado
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  )}
+                </ScrollArea>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Código</TableHead>
+                <TableHead>Produto</TableHead>
+                <TableHead>Qtd</TableHead>
+                <TableHead>Preço Un.</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {cartItems.map((item) => (
+                <TableRow key={item.productId}>
+                  <TableCell>{item.code}</TableCell>
+                  <TableCell>{item.name}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                      >
+                        -
+                      </Button>
+                      <span className="w-8 text-center">{item.quantity}</span>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                      >
+                        +
+                      </Button>
+                    </div>
+                  </TableCell>
+                  <TableCell>R$ {item.price.toFixed(2)}</TableCell>
+                  <TableCell>R$ {item.total.toFixed(2)}</TableCell>
+                  <TableCell>
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      onClick={() => removeFromCart(item.productId)}
+                    >
+                      Remover
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {cartItems.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    Nenhum item no carrinho
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </Card>
+
+        {/* Sidebar */}
+        <Card className="p-4">
+          <div className="space-y-4">
+            <div className="text-2xl font-bold">Total da Compra</div>
+            <div className="text-4xl font-bold text-green-600">
+              R$ {(calculateSubtotal() - discountAmount).toFixed(2)}
+            </div>
+            <Separator />
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span>Subtotal:</span>
+                <span>R$ {calculateSubtotal().toFixed(2)}</span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span>Desconto:</span>
+                  <div className="flex gap-2 items-center">
+                    <Select
+                      value={discount.type}
+                      onValueChange={(value: 'percentage' | 'fixed') => 
+                        setDiscount(prev => ({ ...prev, type: value }))
+                      }
+                    >
+                      <SelectTrigger className="w-[100px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="percentage">%</SelectItem>
+                        <SelectItem value="fixed">R$</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      value={discount.value || ''}
+                      onChange={(e) => setDiscount(prev => ({
+                        ...prev,
+                        value: parseFloat(e.target.value) || 0
+                      }))}
+                      className="w-[100px]"
+                      placeholder="0,00"
+                      step={discount.type === 'percentage' ? '1' : '0.01'}
+                      min="0"
+                      max={discount.type === 'percentage' ? '100' : calculateSubtotal()}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-between text-green-600">
+                  <span>Valor do Desconto:</span>
+                  <span>R$ {discountAmount.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+            <Separator />
+            <div className="space-y-2">
+              <Dialog open={isFinalizingOpen} onOpenChange={setIsFinalizingOpen}>
+                <Button 
+                  className="w-full" 
+                  size="lg" 
+                  onClick={() => {
+                    // Verificar carrinho primeiro
+                    if (cartItems.length === 0) {
+                      toast.error('Adicione produtos ao carrinho');
+                      return;
+                    }
+
+                    // Verificar caixa
+                    if (!caixaAtual) {
+                      setIsNoCaixaDialogOpen(true);
+                      return;
+                    }
+
+                    // Se chegou aqui, temos itens no carrinho e caixa aberto
+                    setIsFinalizingOpen(true);
+                    addPaymentMethod();
+                  }}
+                  disabled={loading}
+                >
+                  {loading ? 'Finalizando...' : 'Finalizar Venda (F2)'}
+                </Button>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Finalizar Venda (F2)</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-4">
+                      {paymentMethods.map((payment, index) => (
+                        <div 
+                          key={payment.id} 
+                          className={`space-y-2 p-2 ${index === activePaymentIndex ? 'bg-gray-50 rounded-lg' : ''}`}
+                        >
+                          <div className="flex gap-2 items-end">
+                            <div className="flex-1">
+                              <Label>Forma de Pagamento ({index + 1})</Label>
+                              <Select
+                                id={`payment-method-${payment.id}`}
+                                value={payment.method}
+                                onValueChange={(value) => {
+                                  updatePaymentMethod(payment.id, 'method', value);
+                                  // Foca automaticamente no input de valor
+                                  document.getElementById(`payment-amount-${payment.id}`)?.focus();
+                                }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Pressione Enter" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                                  <SelectItem value="cartao_debito">Débito</SelectItem>
+                                  <SelectItem value="cartao_credito">Crédito</SelectItem>
+                                  <SelectItem value="pix">PIX</SelectItem>
+                                  <SelectItem value="fiado">Fiado</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex-1">
+                              <Label>Valor (Enter = Restante)</Label>
+                              <Input
+                                id={`payment-amount-${payment.id}`}
+                                type="number"
+                                step="0.01"
+                                value={payment.amount || ''}
+                                onChange={(e) => updatePaymentMethod(payment.id, 'amount', parseFloat(e.target.value) || 0)}
+                                onFocus={() => setActivePaymentIndex(index)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    suggestRemainingAmount(payment.id);
+                                  }
+                                  handlePaymentKeyDown(e, payment.id, index);
+                                }}
+                                placeholder="0,00"
+                              />
+                            </div>
+                            {index > 0 && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removePaymentMethod(payment.id)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+
+                          {payment.method === 'fiado' && (
+                            <div className="ml-4">
+                              <Label>Cliente</Label>
+                              <Select
+                                value={payment.clientId}
+                                onValueChange={(value) => updatePaymentMethod(payment.id, 'clientId', value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione o cliente" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {clients.map(client => (
+                                    <SelectItem key={client.id} value={client.id}>
+                                      {client.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
+                      <div>
+                        <Label>Subtotal</Label>
+                        <div className="text-xl font-bold">R$ {calculateSubtotal().toFixed(2)}</div>
+                      </div>
+                      <div>
+                        <Label>Desconto</Label>
+                        <div className="text-xl font-bold text-green-600">
+                          {discount.type === 'percentage' ? `${discount.value}% ` : ''}
+                          (R$ {discountAmount.toFixed(2)})
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Total da Venda</Label>
+                        <div className="text-2xl font-bold">R$ {totalSale.toFixed(2)}</div>
+                      </div>
+                      <div>
+                        <Label>Total Pago</Label>
+                        <div className="text-2xl font-bold">R$ {totalPaid.toFixed(2)}</div>
+                      </div>
+                      <div>
+                        <Label>Restante</Label>
+                        <div className={`text-2xl font-bold ${
+                          remaining > 0 ? 'text-red-600' : 
+                          remaining < 0 ? 'text-green-600' : ''
+                        }`}>
+                          R$ {remaining.toFixed(2)}
+                        </div>
+                      </div>
+                      {remaining < 0 && (
+                        <div>
+                          <Label>Troco</Label>
+                          <div className="text-2xl font-bold text-green-600">
+                            R$ {Math.abs(remaining).toFixed(2)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <Separator />
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={addPaymentMethod}
+                    >
+                      + Adicionar Forma de Pagamento
+                    </Button>
+
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setIsFinalizingOpen(false)}>
+                        Cancelar (Esc)
+                      </Button>
+                      <Button 
+                        onClick={confirmarVenda}
+                        disabled={
+                          loading ||
+                          remaining > 0 || 
+                          paymentMethods.some(p => p.method === 'fiado' && !p.clientId)
+                        }
+                      >
+                        {loading ? 'Finalizando...' : 'Confirmar (F2)'}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <Button 
+                className="w-full" 
+                variant="destructive"
+                onClick={cancelarVenda}
+                disabled={cartItems.length === 0}
+              >
+                Cancelar Venda (F4)
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Seção de Últimas Vendas */}
+      <Card className="mt-4 p-4">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold">Últimas Vendas</h2>
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Data/Hora</TableHead>
+              <TableHead>Vendedor</TableHead>
+              <TableHead>Total</TableHead>
+              <TableHead>Pagamento</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {ultimasVendas.map((venda) => (
+              <TableRow key={venda.id}>
+                <TableCell>
+                  {new Date(venda.data).toLocaleString()}
+                </TableCell>
+                <TableCell>{venda.vendedor_nome}</TableCell>
+                <TableCell>R$ {Number(venda.valor_final).toFixed(2)}</TableCell>
+                <TableCell>
+                  {venda.pagamentos?.map(p => (
+                    <div key={p.id}>
+                      {formatPaymentMethod(p.forma_pagamento)}: R$ {Number(p.valor).toFixed(2)}
+                    </div>
+                  ))}
+                </TableCell>
+                <TableCell>
+                  <span className={`px-2 py-1 rounded-full text-xs ${
+                    venda.status === 'concluida' ? 'bg-green-100 text-green-800' : 
+                    venda.status === 'cancelada' ? 'bg-red-100 text-red-800' : 
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {formatStatus(venda.status)}
+                  </span>
+                </TableCell>
+              </TableRow>
+            ))}
+            {ultimasVendas.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  Nenhuma venda realizada
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </Card>
     </div>
   );
 }
+
+// Componente dinâmico sem SSR
+const Home = dynamic(() => Promise.resolve(PDVComponent), {
+  ssr: false,
+  loading: () => (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-lg">Carregando...</div>
+    </div>
+  ),
+});
+
+export default Home;
