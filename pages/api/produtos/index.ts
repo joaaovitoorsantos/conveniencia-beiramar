@@ -42,9 +42,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const [produtos] = await pool.query<RowDataPacket[]>(query, params);
         
-        // Log para debug
-        console.log('Query resultado:', produtos);
-        
         res.status(200).json(produtos);
       } catch (error) {
         console.error('Erro ao buscar produtos:', error);

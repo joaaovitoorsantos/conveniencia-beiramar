@@ -61,6 +61,14 @@ interface Fornecedor {
   cnpj: string;
 }
 
+interface CompraItem {
+  produto_id: string;
+  produto_nome: string;
+  quantidade: number;
+  valor_unitario: number;
+  valor_total: number;
+}
+
 export default function ComprasPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -76,6 +84,7 @@ export default function ComprasPage() {
   const [loading, setLoading] = useState(false);
   const [compras, setCompras] = useState<Compra[]>([]);
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
+  const [total, setTotal] = useState(0);
 
   // Buscar produto por código de barras
   const findProductByBarcode = async (code: string) => {
@@ -140,24 +149,43 @@ export default function ComprasPage() {
     }
   };
 
-  // Adicionar produto à entrada
-  const addToEntry = (produto: Produto) => {
-    const valorUnitario = Number(precoCusto) || Number(produto.preco_custo) || 0;
-    const qtd = Number(quantidade) || 1;
-    const valorTotal = qtd * valorUnitario;
+  // Adicionar produto através da busca
+  const handleAddProduct = (produto: Produto) => {
+    // Verificar se o produto já existe no carrinho
+    const itemExistente = itensCompra.find(item => item.produto_id === produto.id);
+    
+    if (itemExistente) {
+      // Atualizar quantidade do item existente
+      const novosItens = itensCompra.map(item => {
+        if (item.produto_id === produto.id) {
+          const novaQuantidade = item.quantidade + 1; // Incrementa 1 unidade
+          return {
+            ...item,
+            quantidade: novaQuantidade,
+            valor_total: novaQuantidade * Number(item.valor_unitario)
+          };
+        }
+        return item;
+      });
+      
+      setItensCompra(novosItens);
+      toast.success(`Quantidade de ${produto.nome} atualizada no carrinho`);
+    } else {
+      // Adicionar novo item
+      const novoItem: ItemCompra = {
+        produto_id: produto.id,
+        produto_nome: produto.nome,
+        quantidade: 1,
+        valor_unitario: Number(produto.preco_custo) || 0,
+        valor_total: 1 * (Number(produto.preco_custo) || 0)
+      };
 
-    const item: ItemCompra = {
-      produto_id: produto.id,
-      produto_nome: produto.nome,
-      quantidade: qtd,
-      valor_unitario: valorUnitario,
-      valor_total: valorTotal
-    };
+      setItensCompra([...itensCompra, novoItem]);
+      toast.success(`${produto.nome} adicionado ao carrinho`);
+    }
 
-    setItensCompra([...itensCompra, item]);
-    setQuantidade(1);
-    setPrecoCusto(0);
     setIsSearchOpen(false);
+    setSearchTerm("");
   };
 
   // Remover item da entrada
@@ -274,6 +302,12 @@ export default function ComprasPage() {
     loadData();
   }, []);
 
+  // Atualiza o total sempre que os itens mudarem
+  useEffect(() => {
+    const novoTotal = itensCompra.reduce((sum, item) => sum + item.valor_total, 0);
+    setTotal(novoTotal);
+  }, [itensCompra]);
+
   return (
     <div className="min-h-screen bg-gray-100 p-4">
       {/* Header */}
@@ -370,7 +404,7 @@ export default function ComprasPage() {
                               />
                             </TableCell>
                             <TableCell>
-                              <Button onClick={() => addToEntry(produto)}>
+                              <Button onClick={() => handleAddProduct(produto)}>
                                 Adicionar
                               </Button>
                             </TableCell>
@@ -440,7 +474,7 @@ export default function ComprasPage() {
           <div className="space-y-4">
             <div className="text-2xl font-bold">Total da Entrada</div>
             <div className="text-4xl font-bold text-blue-600">
-              R$ {itensCompra.reduce((sum, item) => sum + Number(item.valor_total), 0).toFixed(2)}
+              R$ {total.toFixed(2)}
             </div>
             <div className="space-y-4">
               <div>
