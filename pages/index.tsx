@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,7 +34,7 @@ import { useRouter } from 'next/router';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { useAuth } from "@/hooks/useAuth";
-import { X } from "lucide-react";
+import { X, AlertCircle } from "lucide-react";
 
 interface PaymentMethod {
   id: string;
@@ -205,7 +206,7 @@ const PAYMENT_OPTIONS = [
 function PDVComponent() {
   const router = useRouter();
   const { user, hasPermission, logout } = useAuth();
-  
+
   // Todos os estados
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [discount, setDiscount] = useState<Discount>({ type: 'fixed', value: 0 });
@@ -234,7 +235,7 @@ function PDVComponent() {
   };
 
   const updatePaymentMethod = (id: string, field: 'method' | 'amount' | 'clientId', value: string | number) => {
-    setPaymentMethods(paymentMethods.map(method => 
+    setPaymentMethods(paymentMethods.map(method =>
       method.id === id ? { ...method, [field]: value } : method
     ));
   };
@@ -258,8 +259,8 @@ function PDVComponent() {
     return cartItems.reduce((sum, item) => sum + item.total, 0);
   };
 
-  const discountAmount = discount.type === 'percentage' 
-    ? (calculateSubtotal() * discount.value) / 100 
+  const discountAmount = discount.type === 'percentage'
+    ? (calculateSubtotal() * discount.value) / 100
     : discount.value;
 
   const totalSale = calculateSubtotal() - discountAmount;
@@ -271,7 +272,7 @@ function PDVComponent() {
     const handleKeyDown = async (e: KeyboardEvent) => {
       if (e.key === 'F2') {
         e.preventDefault();
-        
+
         // Se o modal já estiver aberto
         if (isFinalizingOpen) {
           // Verifica se tem algum método de pagamento
@@ -307,7 +308,7 @@ function PDVComponent() {
           addPaymentMethod(); // Adiciona o primeiro método de pagamento
         }
       }
-      
+
       if (e.key === 'F4') {
         e.preventDefault();
         cancelarVenda();
@@ -323,20 +324,16 @@ function PDVComponent() {
     const verificarCaixa = async () => {
       try {
         const response = await axios.get('/api/caixas/atual');
-        if (response.data) {
-          setCaixaAtual(response.data.id);
-        } else {
+        setCaixaAtual(response.data);
+      } catch (error: any) {
+        if (error.response?.status === 404) {
           setIsNoCaixaDialogOpen(true);
         }
-      } catch (error) {
-        setIsNoCaixaDialogOpen(true);
       }
     };
 
-    if (user) {
-      verificarCaixa();
-    }
-  }, [user]);
+    verificarCaixa();
+  }, []);
 
   // Função para buscar últimas vendas
   const fetchUltimasVendas = async () => {
@@ -377,7 +374,7 @@ function PDVComponent() {
       if (response.data && response.data.length > 0) {
         const productResponse = await axios.get(`/api/produtos/${response.data[0].id}`);
         const product = productResponse.data;
-        
+
         // Adiciona o produto ao carrinho
         addToCart(product);
         setBarcodeInput(""); // Limpa o input
@@ -397,7 +394,7 @@ function PDVComponent() {
   };
 
   // Produtos filtrados para a busca
-  const filteredProducts = products.filter(product => 
+  const filteredProducts = products.filter(product =>
     product.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
     product.codigo.includes(searchTerm) ||
     (product.categoria_nome?.toLowerCase() || '').includes(searchTerm.toLowerCase())
@@ -441,15 +438,15 @@ function PDVComponent() {
   // Função para adicionar produto ao carrinho
   const addToCart = (product: Product) => {
     const existingItem = cartItems.find(item => item.productId === product.id);
-    
+
     if (existingItem) {
       setCartItems(cartItems.map(item =>
         item.productId === product.id
-          ? { 
-              ...item, 
-              quantity: item.quantity + quantity, 
-              total: (item.quantity + quantity) * Number(product.preco_venda)
-            }
+          ? {
+            ...item,
+            quantity: item.quantity + quantity,
+            total: (item.quantity + quantity) * Number(product.preco_venda)
+          }
           : item
       ));
     } else {
@@ -510,13 +507,13 @@ function PDVComponent() {
       };
 
       await axios.post('/api/vendas', saleData);
-      
+
       toast.success('Venda finalizada com sucesso');
       setCartItems([]);
       setPaymentMethods([]);
       setDiscount({ type: 'fixed', value: 0 });
       setIsFinalizingOpen(false);
-      
+
       // Recarrega as últimas vendas
       fetchUltimasVendas();
     } catch (error) {
@@ -553,7 +550,7 @@ function PDVComponent() {
       {/* Header */}
       <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow mb-4">
         <div className="flex items-center gap-4">
-          <img 
+          <img
             src="https://i.imgur.com/oLO8FA3.png"
             alt="Logo"
             className="w-12 h-12 rounded-full object-cover"
@@ -567,31 +564,31 @@ function PDVComponent() {
               Estoque
             </Button>
           )}
-          
+
           {hasPermission('financeiro') && (
             <Button variant="outline" onClick={() => router.push('/caixas')}>
               Caixas
             </Button>
           )}
-          
+
           {hasPermission('vendas') && (
             <Button variant="outline" onClick={() => router.push('/vendas')}>
               Vendas
             </Button>
           )}
-          
+
           {hasPermission('compras') && (
             <Button variant="outline" onClick={() => router.push('/compras')}>
               Compras
             </Button>
           )}
-          
+
           {hasPermission('fornecedores') && (
             <Button variant="outline" onClick={() => router.push('/fornecedores')}>
               Fornecedores
             </Button>
           )}
-          
+
           {hasPermission('configuracoes') && (
             <Button variant="outline" onClick={() => router.push('/configuracoes')}>
               Configurações
@@ -599,8 +596,8 @@ function PDVComponent() {
           )}
 
           {/* Botão de Logout */}
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => {
               logout();
               router.replace('/login');
@@ -615,8 +612,8 @@ function PDVComponent() {
         {/* Main Content */}
         <Card className="p-4">
           <div className="flex gap-2 mb-4">
-            <Input 
-              placeholder="Código de barras..." 
+            <Input
+              placeholder="Código de barras..."
               value={barcodeInput}
               onChange={(e) => setBarcodeInput(e.target.value)}
               onKeyDown={handleBarcodeSubmit}
@@ -677,7 +674,7 @@ function PDVComponent() {
                               />
                             </TableCell>
                             <TableCell>
-                              <Button 
+                              <Button
                                 size="sm"
                                 onClick={() => {
                                   addToCart(product);
@@ -724,16 +721,16 @@ function PDVComponent() {
                   <TableCell>{item.name}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         variant="outline"
                         onClick={() => updateQuantity(item.productId, item.quantity - 1)}
                       >
                         -
                       </Button>
                       <span className="w-8 text-center">{item.quantity}</span>
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         variant="outline"
                         onClick={() => updateQuantity(item.productId, item.quantity + 1)}
                       >
@@ -744,8 +741,8 @@ function PDVComponent() {
                   <TableCell>R$ {item.price.toFixed(2)}</TableCell>
                   <TableCell>R$ {item.total.toFixed(2)}</TableCell>
                   <TableCell>
-                    <Button 
-                      variant="destructive" 
+                    <Button
+                      variant="destructive"
                       size="sm"
                       onClick={() => removeFromCart(item.productId)}
                     >
@@ -784,7 +781,7 @@ function PDVComponent() {
                   <div className="flex gap-2 items-center">
                     <Select
                       value={discount.type}
-                      onValueChange={(value: 'percentage' | 'fixed') => 
+                      onValueChange={(value: 'percentage' | 'fixed') =>
                         setDiscount(prev => ({ ...prev, type: value }))
                       }
                     >
@@ -820,9 +817,9 @@ function PDVComponent() {
             <Separator />
             <div className="space-y-2">
               <Dialog open={isFinalizingOpen} onOpenChange={setIsFinalizingOpen}>
-                <Button 
-                  className="w-full" 
-                  size="lg" 
+                <Button
+                  className="w-full"
+                  size="lg"
                   onClick={() => {
                     // Verificar carrinho primeiro
                     if (cartItems.length === 0) {
@@ -851,8 +848,8 @@ function PDVComponent() {
                   <div className="space-y-4 py-4">
                     <div className="space-y-4">
                       {paymentMethods.map((payment, index) => (
-                        <div 
-                          key={payment.id} 
+                        <div
+                          key={payment.id}
                           className={`space-y-2 p-2 ${index === activePaymentIndex ? 'bg-gray-50 rounded-lg' : ''}`}
                         >
                           <div className="flex gap-2 items-end">
@@ -955,10 +952,9 @@ function PDVComponent() {
                       </div>
                       <div>
                         <Label>Restante</Label>
-                        <div className={`text-2xl font-bold ${
-                          remaining > 0 ? 'text-red-600' : 
-                          remaining < 0 ? 'text-green-600' : ''
-                        }`}>
+                        <div className={`text-2xl font-bold ${remaining > 0 ? 'text-red-600' :
+                            remaining < 0 ? 'text-green-600' : ''
+                          }`}>
                           R$ {remaining.toFixed(2)}
                         </div>
                       </div>
@@ -987,11 +983,11 @@ function PDVComponent() {
                       <Button variant="outline" onClick={() => setIsFinalizingOpen(false)}>
                         Cancelar (Esc)
                       </Button>
-                      <Button 
+                      <Button
                         onClick={confirmarVenda}
                         disabled={
                           loading ||
-                          remaining > 0 || 
+                          remaining > 0 ||
                           paymentMethods.some(p => p.method === 'fiado' && !p.clientId)
                         }
                       >
@@ -1002,8 +998,8 @@ function PDVComponent() {
                 </DialogContent>
               </Dialog>
 
-              <Button 
-                className="w-full" 
+              <Button
+                className="w-full"
                 variant="destructive"
                 onClick={cancelarVenda}
                 disabled={cartItems.length === 0}
@@ -1046,11 +1042,10 @@ function PDVComponent() {
                   ))}
                 </TableCell>
                 <TableCell>
-                  <span className={`px-2 py-1 rounded-full text-xs ${
-                    venda.status === 'concluida' ? 'bg-green-100 text-green-800' : 
-                    venda.status === 'cancelada' ? 'bg-red-100 text-red-800' : 
-                    'bg-yellow-100 text-yellow-800'
-                  }`}>
+                  <span className={`px-2 py-1 rounded-full text-xs ${venda.status === 'concluida' ? 'bg-green-100 text-green-800' :
+                      venda.status === 'cancelada' ? 'bg-red-100 text-red-800' :
+                        'bg-yellow-100 text-yellow-800'
+                    }`}>
                     {formatStatus(venda.status)}
                   </span>
                 </TableCell>
@@ -1066,6 +1061,39 @@ function PDVComponent() {
           </TableBody>
         </Table>
       </Card>
+
+      <Dialog open={isNoCaixaDialogOpen} onOpenChange={setIsNoCaixaDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <div className="flex flex-col items-center gap-4 py-4">
+              <AlertCircle className="h-16 w-16 text-yellow-500" />
+              <DialogTitle className="text-xl">Nenhum Caixa Aberto</DialogTitle>
+              <DialogDescription className="text-center">
+                É necessário abrir um caixa antes de realizar vendas.
+                Deseja ir para a página de caixas para abrir um novo?
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+          <div className="flex justify-center gap-4 pt-4">
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => router.push('/caixas')}
+            >
+              <AlertCircle className="mr-2 h-4 w-4" />
+              Ir para Caixas
+            </Button>
+            <Button
+              variant="ghost"
+              size="lg"
+              onClick={() => setIsNoCaixaDialogOpen(false)}
+            >
+              <X className="mr-2 h-4 w-4" />
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

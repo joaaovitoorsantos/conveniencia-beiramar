@@ -23,6 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             p.preco_custo,
             p.estoque,
             p.estoque_minimo,
+            p.data_validade,
             c.nome as categoria_nome
           FROM produtos p
           LEFT JOIN categorias c ON p.categoria_id = c.id

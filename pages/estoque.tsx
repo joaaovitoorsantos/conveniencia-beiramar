@@ -452,7 +452,7 @@ export default function Estoque() {
                       key={product.id} 
                       className={
                         product.estoque <= (product.estoque_minimo || 0) ? 'bg-red-50' : 
-                        (product.data_validade && new Date(product.data_validade) <= new Date()) ? 'bg-yellow-50' : ''
+                        (product.data_validade && new Date(product.data_validade) < new Date()) ? 'bg-yellow-50' : ''
                       }
                     >
                       <TableCell>{product.codigo}</TableCell>
@@ -465,11 +465,14 @@ export default function Estoque() {
                       </TableCell>
                       <TableCell>{product.estoque_minimo}</TableCell>
                       <TableCell className={
-                        product.data_validade && new Date(product.data_validade) <= new Date() 
+                        product.data_validade && new Date(product.data_validade) < new Date() 
                           ? 'text-yellow-600 font-bold' 
                           : ''
                       }>
-                        {product.data_validade ? new Date(product.data_validade).toLocaleDateString() : '-'}
+                        {product.data_validade 
+                          ? new Date(product.data_validade).toLocaleDateString('pt-BR') 
+                          : '-'
+                        }
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
@@ -591,7 +594,7 @@ export default function Estoque() {
                 <div>
                   <div className="text-sm text-gray-500">Produtos Vencidos</div>
                   <div className="text-2xl font-bold text-yellow-600">
-                    {products.filter(p => p.data_validade && new Date(p.data_validade) <= new Date()).length}
+                    {products.filter(p => p.data_validade && new Date(p.data_validade) < new Date()).length}
                   </div>
                 </div>
               </div>

@@ -8,8 +8,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   switch (req.method) {
     case 'GET':
       try {
-        const [rows] = await pool.query(
-          'SELECT * FROM produtos WHERE id = ? AND ativo = true',
+        const [rows] = await pool.query<RowDataPacket[]>(
+          `SELECT 
+            p.*,
+            p.data_validade,
+            c.nome as categoria_nome
+           FROM produtos p
+           LEFT JOIN categorias c ON p.categoria_id = c.id
+           WHERE p.id = ? AND p.ativo = true`,
           [id]
         );
         
