@@ -31,19 +31,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           v.id,
           v.data,
           v.valor_total,
-          v.valor_final,
           v.desconto,
+          v.valor_final,
           v.status,
-          v.caixa_id,
           u.nome as vendedor_nome,
-          GROUP_CONCAT(
+          GROUP_CONCAT(DISTINCT
             JSON_OBJECT(
               'id', pv.id,
               'forma_pagamento', pv.forma_pagamento,
               'valor', pv.valor
             )
           ) as pagamentos,
-          GROUP_CONCAT(
+          GROUP_CONCAT(DISTINCT
             JSON_OBJECT(
               'produto_id', iv.produto_id,
               'quantidade', iv.quantidade,
@@ -58,7 +57,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         LEFT JOIN itens_venda iv ON v.id = iv.venda_id
         LEFT JOIN produtos p ON iv.produto_id = p.id
         WHERE ${dateFilter}
-        GROUP BY v.id
+        GROUP BY 
+          v.id, 
+          v.data, 
+          v.valor_total, 
+          v.desconto, 
+          v.valor_final, 
+          v.status, 
+          u.nome
         ORDER BY v.data DESC
       `);
 
@@ -87,18 +93,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         paymentMethods, 
         seller_id, 
         client_id,
-        caixa_id 
+        caixa_id: caixaInput,
+        conta_receber
       } = req.body;
+
+      // Extrair o ID do caixa se for um objeto
+      const caixa_id = typeof caixaInput === 'object' ? caixaInput.id : caixaInput;
 
       const vendaId = crypto.randomUUID();
 
+      console.log('Dados da venda após correção:', {
+        vendaId,
+        total,
+        discount,
+        valorFinal: total - discount,
+        seller_id,
+        client_id,
+        caixa_id
+      });
+
       // 1. Inserir a venda
-      await connection.query<ResultSetHeader>(
+      const [result] = await connection.query<ResultSetHeader>(
         `INSERT INTO vendas (
-          id, data, valor_total, desconto, valor_final, 
-          vendedor_id, cliente_id, caixa_id, status
-        ) VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, 'concluida')`,
-        [vendaId, total, discount, total - discount, seller_id, client_id || null, caixa_id]
+          id, valor_total, desconto, valor_final, 
+          vendedor_id, cliente_id, caixa_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          vendaId,
+          total,
+          discount,
+          total - discount,
+          seller_id,
+          client_id || null,
+          caixa_id
+        ]
       );
 
       // 2. Inserir os itens da venda
@@ -124,8 +152,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         );
       }
 
+      // Adicione este log antes do loop de pagamentos
+      console.log('Métodos de pagamento:', paymentMethods);
+
       // 3. Inserir os pagamentos
       for (const payment of paymentMethods) {
+        console.log('Inserindo pagamento:', {
+          method: payment.method,
+          amount: payment.amount,
+          clientId: payment.clientId
+        });
+
         await connection.query<ResultSetHeader>(
           `INSERT INTO pagamentos_venda (
             id, venda_id, forma_pagamento, valor
@@ -133,8 +170,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           [
             crypto.randomUUID(),
             vendaId,
-            payment.method,
+            payment.method === 'convenio' ? 'convenio' : payment.method,
             payment.amount
+          ]
+        );
+      }
+
+      // Se houver conta a receber, insere
+      if (conta_receber) {
+        await connection.query(
+          `INSERT INTO contas_receber (
+            id, cliente_id, venda_id, valor, 
+            data_vencimento, status
+          ) VALUES (?, ?, ?, ?, ?, 'pendente')`,
+          [
+            crypto.randomUUID(),
+            conta_receber.cliente_id,
+            vendaId,
+            conta_receber.valor,
+            conta_receber.data_vencimento
           ]
         );
       }

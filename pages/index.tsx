@@ -34,7 +34,10 @@ import { useRouter } from 'next/router';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { useAuth } from "@/hooks/useAuth";
-import { X, AlertCircle } from "lucide-react";
+import { X, AlertCircle, ChevronsUpDown, Check, Receipt, DollarSign, Users, Package, Settings } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Command, CommandInput, CommandItem, CommandEmpty, CommandGroup, CommandPopover, CommandTrigger } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface PaymentMethod {
   id: string;
@@ -90,6 +93,14 @@ interface CartItem {
   quantity: number;
   price: number;
   total: number;
+}
+
+interface Cliente {
+  id: string;
+  nome: string;
+  cpf: string;
+  limite_credito: number;
+  valor_devido: number;
 }
 
 // Simulação de lista de clientes (depois você pode integrar com seu backend)
@@ -180,7 +191,7 @@ const formatPaymentMethod = (method: string) => {
     cartao_credito: "Crédito",
     cartao_debito: "Débito",
     pix: "PIX",
-    fiado: "Fiado"
+    convenio: "Convênio"
   };
   return methods[method] || method;
 };
@@ -201,6 +212,18 @@ const PAYMENT_OPTIONS = [
   { key: '4', method: 'pix', label: '4 - PIX' },
   { key: '5', method: 'fiado', label: '5 - Fiado' },
 ];
+
+// Adicione esta função junto com as outras funções do componente
+const formatarFormaPagamento = (forma: string) => {
+  const formatos: { [key: string]: string } = {
+    dinheiro: 'Dinheiro',
+    cartao_credito: 'Cartão de Crédito',
+    cartao_debito: 'Cartão de Débito',
+    pix: 'PIX',
+    convenio: 'Convênio'
+  };
+  return formatos[forma] || forma;
+};
 
 // Componente PDV
 function PDVComponent() {
@@ -223,6 +246,9 @@ function PDVComponent() {
   const [isOpenCaixaDialog, setIsOpenCaixaDialog] = useState(false);
   const [ultimasVendas, setUltimasVendas] = useState<Sale[]>([]);
   const [isNoCaixaDialogOpen, setIsNoCaixaDialogOpen] = useState(false);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [selectedClient, setSelectedClient] = useState<Cliente | null>(null);
+  const [openCombobox, setOpenCombobox] = useState(false);
 
   // Funções auxiliares
   const addPaymentMethod = () => {
@@ -235,9 +261,21 @@ function PDVComponent() {
   };
 
   const updatePaymentMethod = (id: string, field: 'method' | 'amount' | 'clientId', value: string | number) => {
-    setPaymentMethods(paymentMethods.map(method =>
-      method.id === id ? { ...method, [field]: value } : method
-    ));
+    setPaymentMethods(paymentMethods.map(method => {
+      if (method.id === id) {
+        if (field === 'method') {
+          console.log('Atualizando método de pagamento:', value);
+          if (value === 'convenio') {
+            setOpenCombobox(true);
+            return { ...method, method: 'convenio', clientId: undefined };
+          }
+          setSelectedClient(null);
+          return { ...method, method: value as string, clientId: undefined };
+        }
+        return { ...method, [field]: value };
+      }
+      return method;
+    }));
   };
 
   // useEffects
@@ -481,6 +519,20 @@ function PDVComponent() {
     ));
   };
 
+  // Adicione o useEffect para carregar os clientes
+  useEffect(() => {
+    const loadClientes = async () => {
+      try {
+        const response = await axios.get('/api/clientes');
+        setClientes(response.data);
+      } catch (error) {
+        console.error('Erro ao carregar clientes:', error);
+      }
+    };
+
+    loadClientes();
+  }, []);
+
   // Nova função para confirmar a venda dentro do modal
   const confirmarVenda = async () => {
     if (totalPaid < totalSale) {
@@ -488,9 +540,20 @@ function PDVComponent() {
       return;
     }
 
-    if (totalPaid > totalSale) {
-      toast.error('Valor pago é maior que o total da venda');
+    // Verifica se tem pagamento por convênio e se selecionou o cliente
+    const convenioPayment = paymentMethods.find(p => p.method === 'convenio');
+    if (convenioPayment && !selectedClient) {
+      toast.error('Selecione um cliente para pagamento por convênio');
       return;
+    }
+
+    // Verifica limite de crédito do cliente
+    if (convenioPayment && selectedClient) {
+      const limiteDisponivel = Number(selectedClient.limite_credito) - Number(selectedClient.valor_devido);
+      if (convenioPayment.amount > limiteDisponivel) {
+        toast.error(`Cliente não possui limite de crédito suficiente. Limite disponível: R$ ${limiteDisponivel.toFixed(2)}`);
+        return;
+      }
     }
 
     try {
@@ -502,9 +565,18 @@ function PDVComponent() {
         discount: discountAmount,
         paymentMethods,
         seller_id: user?.id,
-        client_id: paymentMethods.find(p => p.method === 'fiado')?.clientId,
-        caixa_id: caixaAtual
+        client_id: paymentMethods.find(p => p.method === 'convenio')?.clientId,
+        caixa_id: caixaAtual.id
       };
+
+      // Adiciona a conta a receber se for pagamento por convênio
+      if (convenioPayment && selectedClient) {
+        saleData.conta_receber = {
+          cliente_id: selectedClient.id,
+          valor: convenioPayment.amount,
+          data_vencimento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 dias
+        };
+      }
 
       await axios.post('/api/vendas', saleData);
 
@@ -512,6 +584,7 @@ function PDVComponent() {
       setCartItems([]);
       setPaymentMethods([]);
       setDiscount({ type: 'fixed', value: 0 });
+      setSelectedClient(null); // Limpa o cliente selecionado
       setIsFinalizingOpen(false);
 
       // Recarrega as últimas vendas
@@ -560,37 +633,56 @@ function PDVComponent() {
 
         <div className="flex gap-2">
           {hasPermission('estoque') && (
-            <Button variant="outline" onClick={() => router.push('/estoque')}>
+            <Button 
+              variant="outline" 
+              onClick={() => router.push('/estoque')}
+              className="flex items-center gap-2"
+            >
+              <Package className="h-4 w-4" />
               Estoque
             </Button>
           )}
 
           {hasPermission('financeiro') && (
-            <Button variant="outline" onClick={() => router.push('/caixas')}>
+            <Button 
+              variant="outline" 
+              onClick={() => router.push('/caixas')}
+              className="flex items-center gap-2"
+            >
+              <DollarSign className="h-4 w-4" />
               Caixas
             </Button>
           )}
 
           {hasPermission('vendas') && (
-            <Button variant="outline" onClick={() => router.push('/vendas')}>
+            <Button 
+              variant="outline" 
+              onClick={() => router.push('/vendas')}
+              className="flex items-center gap-2"
+            >
+              <Receipt className="h-4 w-4" />
               Vendas
             </Button>
           )}
 
-          {hasPermission('compras') && (
-            <Button variant="outline" onClick={() => router.push('/compras')}>
-              Compras
-            </Button>
-          )}
-
-          {hasPermission('fornecedores') && (
-            <Button variant="outline" onClick={() => router.push('/fornecedores')}>
-              Fornecedores
+          {hasPermission('vendas') && (
+            <Button 
+              variant="outline" 
+              onClick={() => router.push('/clientes')}
+              className="flex items-center gap-2"
+            >
+              <Users className="h-4 w-4" />
+              Clientes
             </Button>
           )}
 
           {hasPermission('configuracoes') && (
-            <Button variant="outline" onClick={() => router.push('/configuracoes')}>
+            <Button 
+              variant="outline" 
+              onClick={() => router.push('/configuracoes')}
+              className="flex items-center gap-2"
+            >
+              <Settings className="h-4 w-4" />
               Configurações
             </Button>
           )}
@@ -872,7 +964,7 @@ function PDVComponent() {
                                   <SelectItem value="cartao_debito">Débito</SelectItem>
                                   <SelectItem value="cartao_credito">Crédito</SelectItem>
                                   <SelectItem value="pix">PIX</SelectItem>
-                                  <SelectItem value="fiado">Fiado</SelectItem>
+                                  <SelectItem value="convenio">Convênio</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -906,24 +998,68 @@ function PDVComponent() {
                             )}
                           </div>
 
-                          {payment.method === 'fiado' && (
+                          {payment.method === 'convenio' && (
                             <div className="ml-4">
-                              <Label>Cliente</Label>
-                              <Select
-                                value={payment.clientId}
-                                onValueChange={(value) => updatePaymentMethod(payment.id, 'clientId', value)}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecione o cliente" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {clients.map(client => (
-                                    <SelectItem key={client.id} value={client.id}>
-                                      {client.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <Label>Selecione o Cliente</Label>
+                              <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={openCombobox}
+                                    className="w-full justify-between"
+                                  >
+                                    {selectedClient ? selectedClient.nome : "Selecionar cliente..."}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[400px] p-0">
+                                  <Command>
+                                    <CommandInput placeholder="Buscar cliente..." />
+                                    <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                                    <CommandGroup className="max-h-[300px] overflow-auto">
+                                      {clientes.map((cliente) => (
+                                        <CommandItem
+                                          key={cliente.id}
+                                          onSelect={() => {
+                                            setSelectedClient(cliente);
+                                            setOpenCombobox(false);
+                                            // Atualiza o clientId no método de pagamento
+                                            const convenioPayment = paymentMethods.find(p => p.method === 'convenio');
+                                            if (convenioPayment) {
+                                              updatePaymentMethod(convenioPayment.id, 'clientId', cliente.id);
+                                            }
+                                          }}
+                                        >
+                                          <Check
+                                            className={cn(
+                                              "mr-2 h-4 w-4",
+                                              selectedClient?.id === cliente.id ? "opacity-100" : "opacity-0"
+                                            )}
+                                          />
+                                          <div className="flex flex-col">
+                                            <span>{cliente.nome}</span>
+                                            <span className="text-sm text-gray-500">
+                                              {cliente.cpf && `CPF: ${cliente.cpf}`}
+                                            </span>
+                                          </div>
+                                          <div className="ml-auto text-sm">
+                                            <span className={Number(cliente.valor_devido) > 0 ? "text-red-600" : "text-green-600"}>
+                                              {Number(cliente.valor_devido) > 0 
+                                                ? `Deve: R$ ${Number(cliente.valor_devido).toFixed(2)}`
+                                                : "Sem débitos"}
+                                            </span>
+                                            <br />
+                                            <span className="text-gray-500">
+                                              Limite: R$ {Number(cliente.limite_credito).toFixed(2)}
+                                            </span>
+                                          </div>
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                  </Command>
+                                </PopoverContent>
+                              </Popover>
                             </div>
                           )}
                         </div>
@@ -1023,6 +1159,7 @@ function PDVComponent() {
               <TableHead>Vendedor</TableHead>
               <TableHead>Total</TableHead>
               <TableHead>Pagamento</TableHead>
+              <TableHead>Itens</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
@@ -1041,11 +1178,24 @@ function PDVComponent() {
                     </div>
                   ))}
                 </TableCell>
+              
                 <TableCell>
-                  <span className={`px-2 py-1 rounded-full text-xs ${venda.status === 'concluida' ? 'bg-green-100 text-green-800' :
-                      venda.status === 'cancelada' ? 'bg-red-100 text-red-800' :
-                        'bg-yellow-100 text-yellow-800'
-                    }`}>
+                  <div className="text-sm space-y-1">
+                    {(venda.itens || []).map((item, index) => (
+                      <div key={index} className="flex justify-between">
+                        <span>
+                          {item.quantidade}x {item.produto_nome}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <span className={`px-2 py-1 rounded-full text-xs ${
+                    venda.status === 'concluida' ? 'bg-green-100 text-green-800' :
+                    venda.status === 'cancelada' ? 'bg-red-100 text-red-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
                     {formatStatus(venda.status)}
                   </span>
                 </TableCell>
@@ -1053,7 +1203,7 @@ function PDVComponent() {
             ))}
             {ultimasVendas.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
                   Nenhuma venda realizada
                 </TableCell>
               </TableRow>

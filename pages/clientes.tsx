@@ -1,3 +1,5 @@
+// @ts-nocheck
+import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -19,328 +21,502 @@ import {
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRouter } from "next/router";
-import { useState } from "react";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "react-hot-toast";
+import axios from "axios";
+import { Users, ArrowLeft, Search, Plus } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-interface Client {
+interface Cliente {
   id: string;
-  name: string;
+  nome: string;
   cpf: string;
-  phone: string;
+  telefone: string;
   email: string;
-  address: string;
-  totalDebt: number;
+  endereco: string;
+  limite_credito: number;
+  valor_devido: number;
+  total_compras: number;
+  ultima_compra: string;
 }
 
-interface DebtItem {
-  id: string;
-  clientId: string;
-  date: Date;
-  dueDate: Date;
-  items: {
-    productName: string;
-    quantity: number;
-    price: number;
-    total: number;
-  }[];
-  total: number;
-  paid: number;
-  remaining: number;
-  status: 'pending' | 'partial' | 'paid';
-}
-
-export default function Clientes() {
+function ClientesComponent() {
   const router = useRouter();
+  const { user, hasPermission } = useAuth();
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isAddClientOpen, setIsAddClientOpen] = useState(false);
-  const [newClient, setNewClient] = useState<Partial<Client>>({});
-  const [selectedClient, setSelectedClient] = useState<string | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    nome: "",
+    cpf: "",
+    telefone: "",
+    email: "",
+    endereco: "",
+    limite_credito: "0"
+  });
+  const [selectedClient, setSelectedClient] = useState<Cliente | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [clientDetails, setClientDetails] = useState<any>(null);
 
-  // Simulação de clientes com dívidas
-  const [clients] = useState<Client[]>([
-    {
-      id: "1",
-      name: "João da Silva",
-      cpf: "123.456.789-00",
-      phone: "(11) 98765-4321",
-      email: "joao@email.com",
-      address: "Rua A, 123",
-      totalDebt: 150.00
-    },
-    {
-      id: "2",
-      name: "Maria Oliveira",
-      cpf: "987.654.321-00",
-      phone: "(11) 91234-5678",
-      email: "maria@email.com",
-      address: "Rua B, 456",
-      totalDebt: 75.50
+  useEffect(() => {
+    if (!hasPermission('vendas')) {
+      toast.error('Você não tem permissão para acessar esta página');
+      router.replace('/');
+      return;
     }
-  ]);
 
-  // Simulação de dívidas
-  const [debts] = useState<DebtItem[]>([
-    {
-      id: "1",
-      clientId: "1",
-      date: new Date("2024-01-15"),
-      dueDate: new Date("2024-02-15"),
-      items: [
-        { productName: "Coca-Cola 2L", quantity: 2, price: 12.00, total: 24.00 },
-        { productName: "Pão de Forma", quantity: 1, price: 8.00, total: 8.00 }
-      ],
-      total: 32.00,
-      paid: 0,
-      remaining: 32.00,
-      status: 'pending'
-    },
-    {
-      id: "2",
-      clientId: "1",
-      date: new Date("2024-01-20"),
-      dueDate: new Date("2024-02-20"),
-      items: [
-        { productName: "Cerveja Lata", quantity: 12, price: 5.00, total: 60.00 },
-        { productName: "Carvão", quantity: 1, price: 25.00, total: 25.00 }
-      ],
-      total: 85.00,
-      paid: 35.00,
-      remaining: 50.00,
-      status: 'partial'
+    carregarClientes();
+  }, []);
+
+  const carregarClientes = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get('/api/clientes');
+      setClientes(response.data);
+    } catch (error) {
+      toast.error('Erro ao carregar clientes');
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
 
-  const filteredClients = clients.filter(client => 
-    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.cpf.includes(searchTerm)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await axios.post('/api/clientes', {
+        ...formData,
+        limite_credito: Number(formData.limite_credito)
+      });
+      
+      toast.success('Cliente cadastrado com sucesso');
+      setIsDialogOpen(false);
+      setFormData({
+        nome: "",
+        cpf: "",
+        telefone: "",
+        email: "",
+        endereco: "",
+        limite_credito: "0"
+      });
+      carregarClientes();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Erro ao cadastrar cliente');
+    }
+  };
+
+  const filteredClientes = clientes.filter(cliente =>
+    cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (cliente.cpf && cliente.cpf.includes(searchTerm)) ||
+    (cliente.telefone && cliente.telefone.includes(searchTerm))
   );
 
-  const clientDebts = (clientId: string) => 
-    debts.filter(debt => debt.clientId === clientId);
-
-  const handleAddClient = () => {
-    if (newClient.name && newClient.cpf) {
-      // Implementar adição de cliente
-      setNewClient({});
-      setIsAddClientOpen(false);
+  const loadClientDetails = async (clientId: string) => {
+    try {
+      const response = await axios.get(`/api/clientes/${clientId}/detalhes`);
+      setClientDetails(response.data);
+    } catch (error) {
+      toast.error('Erro ao carregar detalhes do cliente');
     }
   };
 
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString();
+  const handlePayment = async (contaId: string, valor: number) => {
+    try {
+      await axios.post(`/api/clientes/contas-receber/${contaId}/pagar`, {
+        valor
+      });
+      toast.success('Pagamento registrado com sucesso');
+      loadClientDetails(selectedClient!.id);
+      carregarClientes();
+    } catch (error) {
+      toast.error('Erro ao registrar pagamento');
+    }
   };
 
+  const formatarFormaPagamento = (forma: string) => {
+    const formatos: { [key: string]: string } = {
+      dinheiro: 'Dinheiro',
+      cartao_credito: 'Cartão de Crédito',
+      cartao_debito: 'Cartão de Débito',
+      pix: 'PIX',
+      convenio: 'Convênio'
+    };
+    return formatos[forma] || forma;
+  };
+
+  const formatStatus = (status: string) => {
+    const statusMap: { [key: string]: string } = {
+      'pendente': 'Pendente',
+      'concluida': 'Concluída',
+      'cancelada': 'Cancelada'
+    };
+    return statusMap[status] || status;
+  };
+
+  if (!user) return null;
+
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
-      {/* Header */}
-      <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow mb-4">
-        <div className="flex items-center gap-4">
-          <img 
-            src="https://i.imgur.com/oLO8FA3.png"
-            alt="Logo"
-            className="w-12 h-12 rounded-full object-cover"
-          />
-          <h1 className="text-2xl font-bold">Clientes</h1>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => router.push('/')}>
-            PDV
-          </Button>
-          <Button variant="outline" onClick={() => router.push('/vendas')}>
-            Vendas
-          </Button>
+    <div className="min-h-screen bg-gray-100">
+      <div className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                onClick={() => router.push('/')}
+                className="flex items-center gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Voltar ao PDV
+              </Button>
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                <h1 className="text-2xl font-bold">Clientes</h1>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-[2fr_1fr] gap-4">
-        <Card className="p-4">
-          <div className="flex gap-2 mb-4">
-            <Input 
-              placeholder="Buscar por nome ou CPF..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1"
-            />
-            <Dialog open={isAddClientOpen} onOpenChange={setIsAddClientOpen}>
-              <DialogTrigger asChild>
-                <Button>Adicionar Cliente</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Adicionar Novo Cliente</DialogTitle>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div>
-                    <Label>Nome Completo</Label>
-                    <Input
-                      value={newClient.name || ''}
-                      onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
-                      placeholder="Nome do cliente"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Card>
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-2 bg-white rounded-lg w-1/3">
+                <Search className="h-4 w-4 ml-2 text-gray-400" />
+                <Input
+                  placeholder="Buscar por nome, CPF ou telefone..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="border-none focus-visible:ring-0"
+                />
+              </div>
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    Novo Cliente
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Cadastrar Cliente</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                      <Label>CPF</Label>
+                      <Label htmlFor="nome">Nome</Label>
                       <Input
-                        value={newClient.cpf || ''}
-                        onChange={(e) => setNewClient({ ...newClient, cpf: e.target.value })}
-                        placeholder="000.000.000-00"
+                        id="nome"
+                        value={formData.nome}
+                        onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                        required
                       />
                     </div>
                     <div>
-                      <Label>Telefone</Label>
+                      <Label htmlFor="cpf">CPF</Label>
                       <Input
-                        value={newClient.phone || ''}
-                        onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
-                        placeholder="(00) 00000-0000"
+                        id="cpf"
+                        value={formData.cpf}
+                        onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
                       />
                     </div>
-                  </div>
-                  <div>
-                    <Label>Email</Label>
-                    <Input
-                      type="email"
-                      value={newClient.email || ''}
-                      onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
-                      placeholder="email@exemplo.com"
-                    />
-                  </div>
-                  <div>
-                    <Label>Endereço</Label>
-                    <Input
-                      value={newClient.address || ''}
-                      onChange={(e) => setNewClient({ ...newClient, address: e.target.value })}
-                      placeholder="Endereço completo"
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setIsAddClientOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleAddClient}>
-                    Salvar Cliente
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
+                    <div>
+                      <Label htmlFor="telefone">Telefone</Label>
+                      <Input
+                        id="telefone"
+                        value={formData.telefone}
+                        onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="email">E-mail</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="endereco">Endereço</Label>
+                      <Input
+                        id="endereco"
+                        value={formData.endereco}
+                        onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="limite_credito">Limite de Crédito</Label>
+                      <Input
+                        id="limite_credito"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={formData.limite_credito}
+                        onChange={(e) => setFormData({ ...formData, limite_credito: e.target.value })}
+                      />
+                    </div>
+                    <Button type="submit" className="w-full">
+                      Cadastrar
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
 
-          <ScrollArea className="h-[600px]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>CPF</TableHead>
-                  <TableHead>Telefone</TableHead>
-                  <TableHead>Total em Aberto</TableHead>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredClients.map((client) => (
-                  <TableRow 
-                    key={client.id} 
-                    className={selectedClient === client.id ? 'bg-gray-100' : ''}
-                  >
-                    <TableCell className="font-medium">{client.name}</TableCell>
-                    <TableCell>{client.cpf}</TableCell>
-                    <TableCell>{client.phone}</TableCell>
-                    <TableCell className="font-bold text-red-600">
-                      R$ {client.totalDebt.toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => setSelectedClient(
-                          selectedClient === client.id ? null : client.id
-                        )}
-                      >
-                        Ver Detalhes
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </ScrollArea>
-        </Card>
-
-        {/* Painel de Detalhes */}
-        <Card className="p-4">
-          <h2 className="text-xl font-bold mb-4">Detalhes das Dívidas</h2>
-          {selectedClient ? (
             <ScrollArea className="h-[600px]">
-              <Accordion type="single" collapsible>
-                {clientDebts(selectedClient).map((debt) => (
-                  <AccordionItem key={debt.id} value={debt.id}>
-                    <AccordionTrigger className="hover:bg-gray-50 px-4">
-                      <div className="flex justify-between items-center w-full">
-                        <span>{formatDate(debt.date)}</span>
-                        <span className="font-bold text-red-600">
-                          R$ {debt.remaining.toFixed(2)}
-                        </span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-4">
-                      <div className="space-y-4">
-                        <div className="text-sm text-gray-500">
-                          Vencimento: {formatDate(debt.dueDate)}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>CPF</TableHead>
+                    <TableHead>Telefone</TableHead>
+                    <TableHead>Total Compras</TableHead>
+                    <TableHead>Última Compra</TableHead>
+                    <TableHead>Limite Crédito</TableHead>
+                    <TableHead>Valor Devido</TableHead>
+                    <TableHead>Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+                          <span>Carregando...</span>
                         </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredClientes.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        Nenhum cliente encontrado
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredClientes.map((cliente) => (
+                      <TableRow key={cliente.id}>
+                        <TableCell>{cliente.nome}</TableCell>
+                        <TableCell>{cliente.cpf || '-'}</TableCell>
+                        <TableCell>{cliente.telefone || '-'}</TableCell>
+                        <TableCell>{cliente.total_compras}</TableCell>
+                        <TableCell>
+                          {cliente.ultima_compra 
+                            ? new Date(cliente.ultima_compra).toLocaleDateString() 
+                            : '-'}
+                        </TableCell>
+                        <TableCell>R$ {Number(cliente.limite_credito).toFixed(2)}</TableCell>
+                        <TableCell className={cliente.valor_devido > 0 ? "text-red-600" : ""}>
+                          R$ {Number(cliente.valor_devido).toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => {
+                                setSelectedClient(cliente);
+                                setIsDetailsOpen(true);
+                                loadClientDetails(cliente.id);
+                              }}
+                            >
+                              Detalhes
+                            </Button>
+                            <Button variant="ghost" size="sm">
+                              Editar
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </div>
+        </Card>
+      </div>
+
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="max-w-4xl h-[100dvh] flex flex-col p-0">
+          <DialogHeader className="p-6 border-b">
+            <DialogTitle>Detalhes do Cliente</DialogTitle>
+          </DialogHeader>
+
+          {selectedClient && clientDetails ? (
+            <ScrollArea className="flex-1 p-6">
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="space-y-2 text-sm">
+                    <p><span className="font-medium">Nome:</span> {selectedClient.nome}</p>
+                    <p><span className="font-medium">CPF:</span> {selectedClient.cpf || '-'}</p>
+                    <p><span className="font-medium">Contato:</span> {selectedClient.telefone || '-'} / {selectedClient.email || '-'}</p>
+                    <p><span className="font-medium">Endereço:</span> {selectedClient.endereco || '-'}</p>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <p><span className="font-medium">Total Compras:</span> {selectedClient.total_compras}</p>
+                    <p><span className="font-medium">Limite:</span> R$ {Number(selectedClient.limite_credito).toFixed(2)}</p>
+                    <p>
+                      <span className="font-medium">Valor Devido:</span>
+                      <span className={selectedClient.valor_devido > 0 ? "text-red-600 ml-1" : "ml-1"}>
+                        R$ {Number(selectedClient.valor_devido).toFixed(2)}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-medium mb-2">Histórico de Compras</h3>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs">Data</TableHead>
+                          <TableHead className="text-xs">Valor</TableHead>
+                          <TableHead className="text-xs">Pagamento</TableHead>
+                          <TableHead className="text-xs">Itens</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {clientDetails.compras.map((compra: any) => (
+                          <TableRow key={compra.id} className="text-xs">
+                            <TableCell>{new Date(compra.data).toLocaleString()}</TableCell>
+                            <TableCell>R$ {Number(compra.valor_final).toFixed(2)}</TableCell>
+                            <TableCell className="max-w-[200px]">
+                              {compra.pagamentos.map((p: any) => (
+                                <div key={p.forma_pagamento} className="whitespace-nowrap">
+                                  {formatarFormaPagamento(p.forma_pagamento)}: R$ {Number(p.valor).toFixed(2)}
+                                </div>
+                              ))}
+                            </TableCell>
+                            <TableCell className="max-w-[250px]">
+                              <div className="space-y-1">
+                                {compra.itens.map((item: any, index: number) => (
+                                  <div key={index} className="flex justify-between text-xs">
+                                    <span className="truncate">{item.quantidade}x {item.produto_nome}</span>
+                                    <span className="text-gray-600 ml-2 shrink-0">
+                                      R$ {Number(item.valor_total).toFixed(2)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-medium mb-2">Contas a Receber</h3>
+                  <Tabs defaultValue="pendentes" className="w-full">
+                    <TabsList className="mb-2">
+                      <TabsTrigger value="pendentes">Pendentes</TabsTrigger>
+                      <TabsTrigger value="pagas">Pagas</TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="pendentes">
+                      <div className="border rounded-lg overflow-hidden">
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead>Produto</TableHead>
-                              <TableHead>Qtd</TableHead>
-                              <TableHead>Valor</TableHead>
+                              <TableHead className="text-xs">Vencimento</TableHead>
+                              <TableHead className="text-xs">Valor</TableHead>
+                              <TableHead className="text-xs">Status</TableHead>
+                              <TableHead className="text-xs">Ações</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {debt.items.map((item, index) => (
-                              <TableRow key={index}>
-                                <TableCell>{item.productName}</TableCell>
-                                <TableCell>{item.quantity}</TableCell>
-                                <TableCell>R$ {item.total.toFixed(2)}</TableCell>
-                              </TableRow>
+                            {clientDetails.contas
+                              .filter(conta => conta.status === 'pendente')
+                              .map((conta: any) => (
+                                <TableRow key={conta.id} className="text-xs">
+                                  <TableCell>{new Date(conta.data_vencimento).toLocaleDateString()}</TableCell>
+                                  <TableCell>R$ {Number(conta.valor).toFixed(2)}</TableCell>
+                                  <TableCell>
+                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                                      new Date(conta.data_vencimento) < new Date() 
+                                        ? 'bg-red-100 text-red-800'
+                                        : 'bg-yellow-100 text-yellow-800'
+                                    }`}>
+                                      {new Date(conta.data_vencimento) < new Date() ? 'Vencida' : 'Pendente'}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 text-xs"
+                                      onClick={() => handlePayment(conta.id, conta.valor)}
+                                    >
+                                      Registrar Pagamento
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
                             ))}
                           </TableBody>
                         </Table>
-                        <div className="flex justify-between text-sm">
-                          <span>Total:</span>
-                          <span>R$ {debt.total.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Pago:</span>
-                          <span>R$ {debt.paid.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between font-bold">
-                          <span>Restante:</span>
-                          <span className="text-red-600">
-                            R$ {debt.remaining.toFixed(2)}
-                          </span>
-                        </div>
-                        <Button className="w-full">
-                          Registrar Pagamento
-                        </Button>
                       </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
+                    </TabsContent>
+
+                    <TabsContent value="pagas">
+                      <div className="border rounded-lg overflow-hidden">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-xs">Vencimento</TableHead>
+                              <TableHead className="text-xs">Pagamento</TableHead>
+                              <TableHead className="text-xs">Valor</TableHead>
+                              <TableHead className="text-xs">Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {clientDetails.contas
+                              .filter(conta => conta.status === 'pago')
+                              .map((conta: any) => (
+                                <TableRow key={conta.id} className="text-xs">
+                                  <TableCell>{new Date(conta.data_vencimento).toLocaleDateString()}</TableCell>
+                                  <TableCell>{new Date(conta.data_pagamento).toLocaleDateString()}</TableCell>
+                                  <TableCell>R$ {Number(conta.valor).toFixed(2)}</TableCell>
+                                  <TableCell>
+                                    <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-green-100 text-green-800">
+                                      Pago
+                                    </span>
+                                  </TableCell>
+                                </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              </div>
             </ScrollArea>
           ) : (
-            <div className="text-center text-gray-500">
-              Selecione um cliente para ver os detalhes
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center text-gray-500">
+                <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+                <p>Carregando informações...</p>
+              </div>
             </div>
           )}
-        </Card>
-      </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-} 
+}
+
+const Clientes = dynamic(() => Promise.resolve(ClientesComponent), {
+  ssr: false,
+  loading: () => (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-lg">Carregando...</div>
+    </div>
+  ),
+});
+
+export default Clientes; 
