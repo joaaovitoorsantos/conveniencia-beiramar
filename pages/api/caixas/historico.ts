@@ -63,6 +63,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         WHERE ${dateFilter.replace('data_abertura', 'c.data_abertura')}
       `);
 
+      // Adicionar query para produtos mais vendidos
+      const [produtosMaisVendidos] = await pool.query<RowDataPacket[]>(`
+        SELECT 
+          p.id,
+          p.nome,
+          p.codigo,
+          SUM(iv.quantidade) as total_quantidade,
+          SUM(iv.valor_total) as total_vendas,
+          COUNT(DISTINCT v.id) as total_vendas_distintas
+        FROM produtos p
+        INNER JOIN itens_venda iv ON p.id = iv.produto_id
+        INNER JOIN vendas v ON v.id = iv.venda_id
+        WHERE ${dateFilter.replace('data_abertura', 'v.data')}
+        GROUP BY p.id
+        ORDER BY total_quantidade DESC
+        LIMIT 10
+      `);
+
+      // Adicionar query para totais por forma de pagamento
+      const [totaisPorFormaPagamento] = await pool.query<RowDataPacket[]>(`
+        SELECT 
+          pv.forma_pagamento,
+          COUNT(*) as quantidade_pagamentos,
+          SUM(pv.valor) as valor_total
+        FROM pagamentos_venda pv
+        INNER JOIN vendas v ON v.id = pv.venda_id
+        WHERE ${dateFilter.replace('data_abertura', 'v.data')}
+        GROUP BY pv.forma_pagamento
+        ORDER BY valor_total DESC
+      `);
+
       res.status(200).json({
         caixas,
         estatisticas: {
@@ -70,7 +101,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           mediaVendas: Number(estatisticas[0].media_vendas),
           totalCaixas: Number(estatisticas[0].total_caixas),
           saldoTotal: Number(estatisticas[0].saldo_total)
-        }
+        },
+        produtosMaisVendidos,
+        totaisPorFormaPagamento
       });
     } catch (error) {
       console.error('Erro ao buscar histórico:', error);

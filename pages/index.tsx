@@ -683,6 +683,18 @@ function PDVComponent() {
             </Button>
           )}
 
+
+          {hasPermission('estoque') && (
+            <Button 
+              variant="outline" 
+              onClick={() => router.push('/fornecedores')}
+              className="flex items-center gap-2"
+            >
+              <Users className="h-4 w-4" />
+              Fornecedores
+            </Button>
+          )}
+
           {hasPermission('configuracoes') && (
             <Button 
               variant="outline" 

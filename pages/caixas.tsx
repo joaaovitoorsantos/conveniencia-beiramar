@@ -35,6 +35,7 @@ import {
   Bar,
   Legend
 } from 'recharts';
+import { Package, Wallet } from "lucide-react";
 
 // Componente principal
 function CaixasComponent() {
@@ -51,6 +52,8 @@ function CaixasComponent() {
     totalCaixas: 0,
     saldoTotal: 0
   });
+  const [produtosMaisVendidos, setProdutosMaisVendidos] = useState<any[]>([]);
+  const [totaisPorFormaPagamento, setTotaisPorFormaPagamento] = useState<any[]>([]);
 
   useEffect(() => {
     verificarCaixa();
@@ -78,6 +81,8 @@ function CaixasComponent() {
       const response = await axios.get(`/api/caixas/historico?periodo=${periodoSelecionado}`);
       setHistoricoCaixas(response.data.caixas);
       setEstatisticas(response.data.estatisticas);
+      setProdutosMaisVendidos(response.data.produtosMaisVendidos);
+      setTotaisPorFormaPagamento(response.data.totaisPorFormaPagamento);
     } catch (error) {
       toast.error('Erro ao carregar histórico');
     }
@@ -117,6 +122,17 @@ function CaixasComponent() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatarFormaPagamento = (forma: string) => {
+    const formatos: { [key: string]: string } = {
+      dinheiro: 'Dinheiro',
+      cartao_credito: 'Cartão de Crédito',
+      cartao_debito: 'Cartão de Débito',
+      pix: 'PIX',
+      convenio: 'Convênio'
+    };
+    return formatos[forma] || forma;
   };
 
   if (!user) return null;
@@ -291,6 +307,90 @@ function CaixasComponent() {
                 </Button>
               </div>
             )}
+          </div>
+        </Card>
+
+        {/* Produtos Mais Vendidos */}
+        <Card className="mb-8">
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <Package className="h-5 w-5" />
+              <h2 className="text-xl font-semibold">Produtos Mais Vendidos</h2>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Produto</TableHead>
+                  <TableHead className="text-right">Qtd. Vendida</TableHead>
+                  <TableHead className="text-right">Total Vendas</TableHead>
+                  <TableHead className="text-right">Ticket Médio</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {produtosMaisVendidos?.map((produto) => (
+                  <TableRow key={produto.id}>
+                    <TableCell>{produto.codigo}</TableCell>
+                    <TableCell>{produto.nome}</TableCell>
+                    <TableCell className="text-right">{produto.total_quantidade}</TableCell>
+                    <TableCell className="text-right">
+                      R$ {Number(produto.total_vendas).toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      R$ {(Number(produto.total_vendas) / produto.total_vendas_distintas).toFixed(2)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {(!produtosMaisVendidos || produtosMaisVendidos.length === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                      Nenhum produto vendido no período
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+
+        {/* Formas de Pagamento */}
+        <Card className="mb-8">
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <Wallet className="h-5 w-5" />
+              <h2 className="text-xl font-semibold">Formas de Pagamento</h2>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Forma de Pagamento</TableHead>
+                  <TableHead className="text-right">Quantidade</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Média por Pagamento</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {totaisPorFormaPagamento?.map((pagamento) => (
+                  <TableRow key={pagamento.forma_pagamento}>
+                    <TableCell>{formatarFormaPagamento(pagamento.forma_pagamento)}</TableCell>
+                    <TableCell className="text-right">{pagamento.quantidade_pagamentos}</TableCell>
+                    <TableCell className="text-right">
+                      R$ {Number(pagamento.valor_total).toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      R$ {(Number(pagamento.valor_total) / pagamento.quantidade_pagamentos).toFixed(2)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {(!totaisPorFormaPagamento || totaisPorFormaPagamento.length === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      Nenhum pagamento no período
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
         </Card>
 
