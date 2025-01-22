@@ -246,10 +246,7 @@ function CaixasComponent() {
                   <div>
                     <p className="text-sm text-gray-500">Aberto em</p>
                     <p className="text-lg font-medium">
-                      {new Date(caixaAtual.data_abertura).toLocaleString('pt-BR', { 
-                        timeZone: 'America/Sao_Paulo',
-                        hour12: false
-                      })}
+                      {new Date(caixaAtual.data_abertura).toLocaleString('pt-BR', { hour12: false })}
                     </p>
                   </div>
                   <div>
@@ -317,10 +314,7 @@ function CaixasComponent() {
                   {historicoCaixas.map((caixa) => (
                     <TableRow key={caixa.id}>
                       <TableCell>
-                        {new Date(caixa.data_abertura).toLocaleString('pt-BR', { 
-                          timeZone: 'America/Sao_Paulo',
-                          hour12: false
-                        })}
+                        {new Date(caixa.data_abertura).toLocaleString('pt-BR', { hour12: false })}
                       </TableCell>
                       <TableCell>{caixa.operador_nome}</TableCell>
                       <TableCell>R$ {Number(caixa.valor_inicial).toFixed(2)}</TableCell>
