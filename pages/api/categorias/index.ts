@@ -6,7 +6,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   switch (req.method) {
     case 'GET':
       try {
-        const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM categorias');
+        const [rows] = await pool.query<RowDataPacket[]>(`
+          SELECT 
+            c.*,
+            (
+              SELECT COUNT(*)
+              FROM produtos p
+              WHERE p.categoria_id = c.id
+              AND p.ativo = true
+            ) as total_produtos
+          FROM categorias c
+          ORDER BY c.nome
+        `);
         res.status(200).json(rows);
       } catch (error) {
         console.error('Erro ao buscar categorias:', error);

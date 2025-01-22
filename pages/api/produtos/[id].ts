@@ -32,7 +32,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     case 'PUT':
       try {
         const {
-          codigo,
           nome,
           descricao,
           preco_venda,
@@ -43,21 +42,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           data_validade
         } = req.body;
 
-        const [result] = await pool.query(
-          `UPDATE produtos SET
-            codigo = ?,
+        await pool.query(
+          `UPDATE produtos 
+           SET 
             nome = ?,
             descricao = ?,
             preco_venda = ?,
             preco_custo = ?,
             estoque = ?,
             estoque_minimo = ?,
-            categoria_id = ?,
-            data_validade = ?,
-            atualizado_em = CURRENT_TIMESTAMP
-          WHERE id = ?`,
+            categoria_id = NULLIF(?, ''),
+            data_validade = ?
+           WHERE id = ?`,
           [
-            codigo,
             nome,
             descricao,
             preco_venda,
@@ -72,6 +69,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         res.status(200).json({ message: 'Produto atualizado com sucesso' });
       } catch (error) {
+        console.error('Erro ao atualizar produto:', error);
         res.status(500).json({ error: 'Erro ao atualizar produto' });
       }
       break;
