@@ -257,7 +257,7 @@ function CaixasComponent() {
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Operador</p>
-                    <p className="text-lg font-medium">{user?.nome}</p>
+                    <p className="text-lg font-medium">{caixaAtual.operador_nome}</p>
                   </div>
                 </div>
                 <Button 

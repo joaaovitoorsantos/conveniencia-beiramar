@@ -7,13 +7,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const [rows] = await pool.query<RowDataPacket[]>(
         `SELECT 
-          id, 
-          data_abertura,
-          valor_inicial,
-          valor_final
-         FROM caixas 
-         WHERE data_fechamento IS NULL 
-         ORDER BY data_abertura DESC 
+          c.id, 
+          c.data_abertura,
+          c.valor_inicial,
+          c.valor_final,
+          c.operador_id,
+          u.nome as operador_nome
+         FROM caixas c
+         LEFT JOIN usuarios u ON c.operador_id = u.id 
+         WHERE c.data_fechamento IS NULL 
+         ORDER BY c.data_abertura DESC 
          LIMIT 1`
       );
 
