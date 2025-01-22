@@ -1114,7 +1114,7 @@ function PDVComponent() {
                         </div>
                       </div>
                       {remaining < 0 && (
-                        <div>
+    <div>
                           <Label>Troco</Label>
                           <div className="text-2xl font-bold text-green-600">
                             R$ {Math.abs(remaining).toFixed(2)}
@@ -1187,7 +1187,10 @@ function PDVComponent() {
             {ultimasVendas.map((venda) => (
               <TableRow key={venda.id}>
                 <TableCell>
-                  {new Date(venda.data).toLocaleString('pt-BR', { hour12: false })}
+                  {new Date(venda.data).toLocaleString('pt-BR', { 
+                    timeZone: 'America/Sao_Paulo',
+                    hour12: false
+                  })}
                 </TableCell>
                 <TableCell>{venda.vendedor_nome}</TableCell>
                 <TableCell>R$ {Number(venda.valor_final).toFixed(2)}</TableCell>

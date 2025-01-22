@@ -34,7 +34,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           c.valor_inicial,
           c.valor_final,
           u.nome as operador_nome,
-          COALESCE(SUM(v.valor_final), 0) as total_vendas
+          COALESCE(SUM(v.valor_final), 0) as total_vendas,
+          COALESCE(
+            SUM(
+              (
+                SELECT SUM(iv.quantidade * p.preco_custo)
+                FROM itens_venda iv
+                LEFT JOIN produtos p ON iv.produto_id = p.id
+                WHERE iv.venda_id = v.id
+              )
+            ),
+            0
+          ) as custo_total
         FROM caixas c
         LEFT JOIN usuarios u ON c.operador_id = u.id
         LEFT JOIN vendas v ON v.caixa_id = c.id
@@ -57,7 +68,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               AND ${dateFilter}
             ), 
             0
-          ) as saldo_total
+          ) as saldo_total,
+          COALESCE(
+            SUM(
+              (
+                SELECT SUM(iv.quantidade * (iv.preco_venda - COALESCE(p.preco_custo, 0)))
+                FROM itens_venda iv
+                LEFT JOIN produtos p ON iv.produto_id = p.id
+                WHERE iv.venda_id = v.id
+              )
+            ),
+            0
+          ) as lucro_bruto
         FROM caixas c
         LEFT JOIN vendas v ON v.caixa_id = c.id
         WHERE ${dateFilter.replace('data_abertura', 'c.data_abertura')}
@@ -100,7 +122,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           totalVendas: Number(estatisticas[0].total_vendas),
           mediaVendas: Number(estatisticas[0].media_vendas),
           totalCaixas: Number(estatisticas[0].total_caixas),
-          saldoTotal: Number(estatisticas[0].saldo_total)
+          saldoTotal: Number(estatisticas[0].saldo_total),
+          lucroBruto: Number(estatisticas[0].lucro_bruto)
         },
         produtosMaisVendidos,
         totaisPorFormaPagamento

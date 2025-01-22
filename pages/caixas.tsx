@@ -33,7 +33,10 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  Legend
+  Legend,
+  PieChart,
+  Pie,
+  Cell
 } from 'recharts';
 import { Package, Wallet } from "lucide-react";
 
@@ -135,6 +138,9 @@ function CaixasComponent() {
     return formatos[forma] || forma;
   };
 
+  // Cores para o PieChart
+  const COLORS = ['#22c55e', '#f59e0b'];
+
   if (!user) return null;
 
   return (
@@ -217,7 +223,8 @@ function CaixasComponent() {
         </div>
 
         {/* Gráficos */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Gráfico de Movimentação do Caixa */}
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Movimentação do Caixa</h3>
             <div className="h-[300px]">
@@ -235,6 +242,7 @@ function CaixasComponent() {
             </div>
           </Card>
 
+          {/* Gráfico de Vendas por Período */}
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Vendas por Período</h3>
             <div className="h-[300px]">
@@ -243,9 +251,53 @@ function CaixasComponent() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="data" />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip 
+                    formatter={(value: any) => {
+                      if (typeof value === 'number') {
+                        return `R$ ${value.toFixed(2)}`;
+                      }
+                      return value;
+                    }}
+                  />
                   <Legend />
-                  <Bar dataKey="total_vendas" fill="#8884d8" name="Total de Vendas" />
+                  <Bar 
+                    dataKey="total_vendas" 
+                    fill="#4f46e5" 
+                    name="Total de Vendas"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          {/* Novo Gráfico de Faturamento */}
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold mb-4">Análise de Faturamento</h3>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={historicoCaixas}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="data" />
+                  <YAxis />
+                  <Tooltip 
+                    formatter={(value: any) => {
+                      if (typeof value === 'number') {
+                        return `R$ ${value.toFixed(2)}`;
+                      }
+                      return value;
+                    }}
+                  />
+                  <Legend />
+                  <Bar 
+                    dataKey="total_vendas" 
+                    fill="#22c55e" 
+                    name="Faturamento Bruto"
+                  />
+                  <Bar 
+                    dataKey={(data) => data.total_vendas - data.custo_total} 
+                    fill="#f59e0b" 
+                    name="Faturamento Líquido"
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
