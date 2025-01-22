@@ -1167,7 +1167,9 @@ function PDVComponent() {
             {ultimasVendas.map((venda) => (
               <TableRow key={venda.id}>
                 <TableCell>
-                  {new Date(venda.data).toLocaleString()}
+                  {new Date(venda.data).toLocaleString('pt-BR', { 
+                    timeZone: 'America/Sao_Paulo'
+                  })}
                 </TableCell>
                 <TableCell>{venda.vendedor_nome}</TableCell>
                 <TableCell>R$ {Number(venda.valor_final).toFixed(2)}</TableCell>
