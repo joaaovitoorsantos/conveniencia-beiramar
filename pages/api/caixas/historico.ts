@@ -10,19 +10,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       let dateFilter = '';
       switch (periodo) {
         case 'hoje':
-          dateFilter = 'DATE(c.data_abertura) = CURDATE()';
+          dateFilter = 'DATE(data_abertura) = CURDATE()';
           break;
         case 'semana':
-          dateFilter = 'c.data_abertura >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)';
+          dateFilter = 'data_abertura >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)';
           break;
         case 'mes':
-          dateFilter = 'c.data_abertura >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)';
+          dateFilter = 'data_abertura >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)';
           break;
         case 'ano':
-          dateFilter = 'c.data_abertura >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)';
+          dateFilter = 'data_abertura >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)';
           break;
         default:
-          dateFilter = 'DATE(c.data_abertura) = CURDATE()';
+          dateFilter = 'DATE(data_abertura) = CURDATE()';
       }
 
       // Buscar caixas
@@ -38,7 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         FROM caixas c
         LEFT JOIN usuarios u ON c.operador_id = u.id
         LEFT JOIN vendas v ON v.caixa_id = c.id
-        WHERE ${dateFilter}
+        WHERE ${dateFilter.replace('data_abertura', 'c.data_abertura')}
         GROUP BY c.id
         ORDER BY c.data_abertura DESC
       `);
@@ -49,10 +49,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           COALESCE(SUM(v.valor_final), 0) as total_vendas,
           COALESCE(AVG(v.valor_final), 0) as media_vendas,
           COUNT(DISTINCT c.id) as total_caixas,
-          COALESCE(SUM(c.valor_final - c.valor_inicial), 0) as saldo_total
+          COALESCE(
+            (
+              SELECT SUM(valor_final - valor_inicial)
+              FROM caixas 
+              WHERE data_fechamento IS NOT NULL
+              AND ${dateFilter}
+            ), 
+            0
+          ) as saldo_total
         FROM caixas c
         LEFT JOIN vendas v ON v.caixa_id = c.id
-        WHERE ${dateFilter}
+        WHERE ${dateFilter.replace('data_abertura', 'c.data_abertura')}
       `);
 
       res.status(200).json({

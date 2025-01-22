@@ -535,6 +535,13 @@ function PDVComponent() {
 
   // Nova função para confirmar a venda dentro do modal
   const confirmarVenda = async () => {
+    // Verificar se tem alguma forma de pagamento sem valor
+    const hasEmptyPayment = paymentMethods.some(p => !p.amount || p.amount <= 0);
+    if (hasEmptyPayment) {
+      toast.error('Todas as formas de pagamento devem ter um valor');
+      return;
+    }
+
     if (totalPaid < totalSale) {
       toast.error('Valor pago é menor que o total da venda');
       return;
@@ -1124,7 +1131,8 @@ function PDVComponent() {
                         disabled={
                           loading ||
                           remaining > 0 ||
-                          paymentMethods.some(p => p.method === 'fiado' && !p.clientId)
+                          paymentMethods.some(p => !p.amount || p.amount <= 0) ||
+                          paymentMethods.some(p => p.method === 'convenio' && !p.clientId)
                         }
                       >
                         {loading ? 'Finalizando...' : 'Confirmar (F2)'}
