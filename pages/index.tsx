@@ -1168,7 +1168,8 @@ function PDVComponent() {
               <TableRow key={venda.id}>
                 <TableCell>
                   {new Date(venda.data).toLocaleString('pt-BR', { 
-                    timeZone: 'America/Sao_Paulo'
+                    timeZone: 'America/Sao_Paulo',
+                    hour12: false
                   })}
                 </TableCell>
                 <TableCell>{venda.vendedor_nome}</TableCell>
