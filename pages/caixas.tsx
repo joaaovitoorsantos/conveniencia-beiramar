@@ -37,8 +37,7 @@ import { Package, Wallet } from "lucide-react";
 
 // Função para formatar data
 const formatarData = (data: string) => {
-  const dataObj = new Date(data);
-  return dataObj.toLocaleString('pt-BR', { 
+  return new Date(data).toLocaleString('pt-BR', { 
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -51,8 +50,7 @@ const formatarData = (data: string) => {
 
 // Função para formatar data curta
 const formatarDataCurta = (data: string) => {
-  const dataObj = new Date(data);
-  return dataObj.toLocaleString('pt-BR', { 
+  return new Date(data).toLocaleString('pt-BR', { 
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
