@@ -34,6 +34,12 @@ import {
   Area
 } from 'recharts';
 import { Package, Wallet } from "lucide-react";
+import moment from 'moment-timezone';
+import 'moment/locale/pt-br';
+
+// Configurar moment para usar pt-BR e timezone de São Paulo
+moment.locale('pt-br');
+moment.tz.setDefault('America/Sao_Paulo');
 
 // Componente principal
 function CaixasComponent() {
@@ -212,11 +218,11 @@ function CaixasComponent() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="data_abertura"
-                    tickFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
+                    tickFormatter={(value) => moment(value).format('DD/MM/YYYY HH:mm')}
                   />
                   <YAxis />
                   <Tooltip 
-                    labelFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
+                    labelFormatter={(value) => moment(value).format('DD/MM/YYYY HH:mm')}
                     formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, '']}
                   />
                   <Legend />
@@ -250,11 +256,11 @@ function CaixasComponent() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="data_abertura"
-                    tickFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
+                    tickFormatter={(value) => moment(value).format('DD/MM/YYYY HH:mm')}
                   />
                   <YAxis />
                   <Tooltip 
-                    labelFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
+                    labelFormatter={(value) => moment(value).format('DD/MM/YYYY HH:mm')}
                     formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, '']}
                   />
                   <Legend />
@@ -277,11 +283,11 @@ function CaixasComponent() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="data_abertura"
-                    tickFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
+                    tickFormatter={(value) => moment(value).format('DD/MM/YYYY HH:mm')}
                   />
                   <YAxis />
                   <Tooltip 
-                    labelFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
+                    labelFormatter={(value) => moment(value).format('DD/MM/YYYY HH:mm')}
                     formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, '']}
                   />
                   <Legend />
@@ -360,7 +366,7 @@ function CaixasComponent() {
                   <div>
                     <p className="text-sm text-gray-500">Aberto em</p>
                     <p className="text-lg font-medium">
-                      {new Date(caixaAtual.data_abertura).toLocaleString('pt-BR', { hour12: false })}
+                      {moment(caixaAtual.data_abertura).format('DD/MM/YYYY HH:mm:ss')}
                     </p>
                   </div>
                   <div>
