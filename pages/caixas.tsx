@@ -34,25 +34,32 @@ import {
   Area
 } from 'recharts';
 import { Package, Wallet } from "lucide-react";
-import moment from 'moment-timezone';
-import 'moment/locale/pt-br';
 
-// Configurar moment para usar pt-BR e timezone de São Paulo
-moment.locale('pt-br');
-moment.tz.setDefault('America/Sao_Paulo');
-
-// Função para formatar data com timezone
-const formatarDataComTimezone = (data: string) => {
-  console.log('Data recebida para formatação:', data);
-  // Forçar interpretação como UTC e converter para America/Sao_Paulo
-  const dataFormatada = moment.utc(data).tz('America/Sao_Paulo').format('DD/MM/YYYY HH:mm:ss');
-  console.log('Data após formatação:', dataFormatada);
-  return dataFormatada;
+// Função para formatar data
+const formatarData = (data: string) => {
+  const dataObj = new Date(data);
+  return dataObj.toLocaleString('pt-BR', { 
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
 };
 
-// Função para formatar data curta com timezone
-const formatarDataCurtaComTimezone = (data: string) => {
-  return moment.utc(data).tz('America/Sao_Paulo').format('DD/MM/YYYY HH:mm');
+// Função para formatar data curta
+const formatarDataCurta = (data: string) => {
+  const dataObj = new Date(data);
+  return dataObj.toLocaleString('pt-BR', { 
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
 };
 
 // Componente principal
@@ -232,11 +239,11 @@ function CaixasComponent() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="data_abertura"
-                    tickFormatter={(value) => formatarDataCurtaComTimezone(value)}
+                    tickFormatter={(value) => formatarDataCurta(value)}
                   />
                   <YAxis />
                   <Tooltip 
-                    labelFormatter={(value) => formatarDataCurtaComTimezone(value)}
+                    labelFormatter={(value) => formatarDataCurta(value)}
                     formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, '']}
                   />
                   <Legend />
@@ -270,11 +277,11 @@ function CaixasComponent() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="data_abertura"
-                    tickFormatter={(value) => formatarDataCurtaComTimezone(value)}
+                    tickFormatter={(value) => formatarDataCurta(value)}
                   />
                   <YAxis />
                   <Tooltip 
-                    labelFormatter={(value) => formatarDataCurtaComTimezone(value)}
+                    labelFormatter={(value) => formatarDataCurta(value)}
                     formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, '']}
                   />
                   <Legend />
@@ -297,11 +304,11 @@ function CaixasComponent() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="data_abertura"
-                    tickFormatter={(value) => formatarDataCurtaComTimezone(value)}
+                    tickFormatter={(value) => formatarDataCurta(value)}
                   />
                   <YAxis />
                   <Tooltip 
-                    labelFormatter={(value) => formatarDataCurtaComTimezone(value)}
+                    labelFormatter={(value) => formatarDataCurta(value)}
                     formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, '']}
                   />
                   <Legend />
@@ -379,7 +386,7 @@ function CaixasComponent() {
                   <div>
                     <p className="text-sm text-gray-500">Aberto em</p>
                     <p className="text-lg font-medium">
-                      {formatarDataComTimezone(caixaAtual.data_abertura)}
+                      {formatarData(caixaAtual.data_abertura)}
                     </p>
                   </div>
                   <div>
