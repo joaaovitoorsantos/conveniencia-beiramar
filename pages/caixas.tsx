@@ -52,12 +52,6 @@ function CaixasComponent() {
   const [produtosMaisVendidos, setProdutosMaisVendidos] = useState<any[]>([]);
   const [totaisPorFormaPagamento, setTotaisPorFormaPagamento] = useState<any[]>([]);
 
-  // Função para ajustar o fuso horário
-  const ajustarFusoHorario = (data: string | Date) => {
-    const dataObj = new Date(data);
-    return new Date(dataObj.getTime() + dataObj.getTimezoneOffset() * 60000 + 3 * 3600000);
-  };
-
   useEffect(() => {
     verificarCaixa();
     carregarHistorico();
@@ -218,11 +212,11 @@ function CaixasComponent() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="data_abertura"
-                    tickFormatter={(value) => ajustarFusoHorario(value).toLocaleString('pt-BR')}
+                    tickFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
                   />
                   <YAxis />
                   <Tooltip 
-                    labelFormatter={(value) => ajustarFusoHorario(value).toLocaleString('pt-BR')}
+                    labelFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
                     formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, '']}
                   />
                   <Legend />
@@ -256,11 +250,11 @@ function CaixasComponent() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="data_abertura"
-                    tickFormatter={(value) => ajustarFusoHorario(value).toLocaleString('pt-BR')}
+                    tickFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
                   />
                   <YAxis />
                   <Tooltip 
-                    labelFormatter={(value) => ajustarFusoHorario(value).toLocaleString('pt-BR')}
+                    labelFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
                     formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, '']}
                   />
                   <Legend />
@@ -283,11 +277,11 @@ function CaixasComponent() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="data_abertura"
-                    tickFormatter={(value) => ajustarFusoHorario(value).toLocaleString('pt-BR')}
+                    tickFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
                   />
                   <YAxis />
                   <Tooltip 
-                    labelFormatter={(value) => ajustarFusoHorario(value).toLocaleString('pt-BR')}
+                    labelFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
                     formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, '']}
                   />
                   <Legend />
@@ -366,7 +360,7 @@ function CaixasComponent() {
                   <div>
                     <p className="text-sm text-gray-500">Aberto em</p>
                     <p className="text-lg font-medium">
-                      {ajustarFusoHorario(caixaAtual.data_abertura).toLocaleString('pt-BR', { hour12: false })}
+                      {new Date(caixaAtual.data_abertura).toLocaleString('pt-BR', { hour12: false })}
                     </p>
                   </div>
                   <div>

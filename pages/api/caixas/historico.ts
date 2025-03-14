@@ -29,8 +29,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const [caixas] = await pool.query<RowDataPacket[]>(`
         SELECT 
           c.id,
-          c.data_abertura,
-          c.data_fechamento,
+          CONVERT_TZ(c.data_abertura, 'UTC', 'America/Sao_Paulo') as data_abertura,
+          CONVERT_TZ(c.data_fechamento, 'UTC', 'America/Sao_Paulo') as data_fechamento,
           c.valor_inicial,
           c.valor_final,
           u.nome as operador_nome,
@@ -65,8 +65,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               SELECT SUM(valor_final - valor_inicial)
               FROM caixas 
               WHERE data_fechamento IS NOT NULL
-              AND data_abertura >= (
-                SELECT MAX(data_abertura) 
+              AND CONVERT_TZ(data_abertura, 'UTC', 'America/Sao_Paulo') >= (
+                SELECT MAX(CONVERT_TZ(data_abertura, 'UTC', 'America/Sao_Paulo'))
                 FROM caixas 
                 WHERE data_fechamento IS NULL
               )
