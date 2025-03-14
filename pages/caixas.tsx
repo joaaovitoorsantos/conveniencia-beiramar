@@ -44,16 +44,15 @@ moment.tz.setDefault('America/Sao_Paulo');
 // Função para formatar data com timezone
 const formatarDataComTimezone = (data: string) => {
   console.log('Data recebida para formatação:', data);
-  console.log('Data interpretada pelo moment:', moment(data).format());
-  console.log('Timezone atual do moment:', moment.tz.guess());
-  const dataFormatada = moment.tz(data, 'America/Sao_Paulo').format('DD/MM/YYYY HH:mm:ss');
+  // Forçar interpretação como UTC e converter para America/Sao_Paulo
+  const dataFormatada = moment.utc(data).tz('America/Sao_Paulo').format('DD/MM/YYYY HH:mm:ss');
   console.log('Data após formatação:', dataFormatada);
   return dataFormatada;
 };
 
 // Função para formatar data curta com timezone
 const formatarDataCurtaComTimezone = (data: string) => {
-  return moment.tz(data, 'America/Sao_Paulo').format('DD/MM/YYYY HH:mm');
+  return moment.utc(data).tz('America/Sao_Paulo').format('DD/MM/YYYY HH:mm');
 };
 
 // Componente principal
