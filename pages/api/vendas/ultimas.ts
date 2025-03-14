@@ -1,6 +1,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import pool from '@/lib/db';
 import { RowDataPacket } from 'mysql2';
+import moment from 'moment-timezone';
+
+// Configurar timezone
+process.env.TZ = 'America/Sao_Paulo';
+moment.tz.setDefault('America/Sao_Paulo');
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {

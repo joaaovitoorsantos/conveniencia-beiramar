@@ -38,6 +38,10 @@ import { X, AlertCircle, ChevronsUpDown, Check, Receipt, DollarSign, Users, Pack
 import { cn } from "@/lib/utils";
 import { Command, CommandInput, CommandItem, CommandEmpty, CommandGroup, CommandPopover, CommandTrigger } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import moment from 'moment-timezone';
+
+// Configurar timezone
+moment.tz.setDefault('America/Sao_Paulo');
 
 interface PaymentMethod {
   id: string;
@@ -103,73 +107,6 @@ interface Cliente {
   valor_devido: number;
 }
 
-// Simulação de lista de clientes (depois você pode integrar com seu backend)
-const clients = [
-  { id: "1", name: "João da Silva" },
-  { id: "2", name: "Maria Oliveira" },
-  { id: "3", name: "Pedro Santos" },
-  { id: "4", name: "Ana Costa" },
-];
-
-// Simulação de produtos
-const products: Product[] = [
-  { id: "1", codigo: "001", nome: "Coca-Cola 350ml", preco_venda: 4.50, estoque: 50 },
-  { id: "2", codigo: "002", nome: "Água Mineral 500ml", preco_venda: 2.50, estoque: 60 },
-  { id: "3", codigo: "003", nome: "Salgadinho Doritos", preco_venda: 8.90, estoque: 30 },
-  { id: "4", codigo: "004", nome: "Chocolate Lacta", preco_venda: 6.50, estoque: 45 },
-  { id: "5", codigo: "005", nome: "Cerveja Heineken", preco_venda: 7.90, estoque: 100 },
-  // Adicione mais produtos conforme necessário
-];
-
-// Adicione os dados simulados de vendas
-const sales: Sale[] = [
-  {
-    id: "1",
-    date: new Date("2024-01-20 14:30"),
-    items: [
-      { productId: "1", productName: "Coca-Cola 350ml", quantity: 2, price: 4.50, total: 9.00 }
-    ],
-    total: 9.00,
-    paymentMethods: [{ method: "dinheiro", amount: 9.00 }],
-    seller: "João Silva"
-  },
-  {
-    id: "2",
-    date: new Date("2024-01-20 15:45"),
-    items: [
-      { productId: "2", productName: "Água Mineral 500ml", quantity: 1, price: 2.50, total: 2.50 },
-      { productId: "3", productName: "Salgadinho Doritos", quantity: 1, price: 8.90, total: 8.90 }
-    ],
-    total: 11.40,
-    paymentMethods: [{ method: "cartao_credito", amount: 11.40 }],
-    seller: "Maria Oliveira"
-  },
-  {
-    id: "3",
-    date: new Date("2024-01-20 16:20"),
-    items: [
-      { productId: "4", productName: "Chocolate Lacta", quantity: 2, price: 6.50, total: 13.00 }
-    ],
-    total: 11.70,
-    discount: 1.30,
-    paymentMethods: [{ method: "pix", amount: 11.70 }],
-    seller: "João Silva"
-  },
-  {
-    id: "4",
-    date: new Date("2024-01-20 17:00"),
-    items: [
-      { productId: "5", productName: "Cerveja Heineken", quantity: 6, price: 7.90, total: 47.40 }
-    ],
-    total: 47.40,
-    paymentMethods: [
-      { method: "dinheiro", amount: 20.00 },
-      { method: "pix", amount: 27.40 }
-    ],
-    seller: "Maria Oliveira"
-  }
-];
-
 // Adicione a função formatPaymentMethods
 const formatPaymentMethods = (methods: { method: string; amount: number }[]) => {
   return methods.map(m => {
@@ -204,14 +141,6 @@ const formatStatus = (status: string) => {
   };
   return statuses[status] || status;
 };
-
-const PAYMENT_OPTIONS = [
-  { key: '1', method: 'dinheiro', label: '1 - Dinheiro' },
-  { key: '2', method: 'cartao_credito', label: '2 - Cartão de Crédito' },
-  { key: '3', method: 'cartao_debito', label: '3 - Cartão de Débito' },
-  { key: '4', method: 'pix', label: '4 - PIX' },
-  { key: '5', method: 'fiado', label: '5 - Fiado' },
-];
 
 // Adicione esta função junto com as outras funções do componente
 const formatarFormaPagamento = (forma: string) => {
@@ -1187,10 +1116,7 @@ function PDVComponent() {
             {ultimasVendas.map((venda) => (
               <TableRow key={venda.id}>
                 <TableCell>
-                  {new Date(venda.data).toLocaleString('pt-BR', { 
-                    timeZone: 'America/Sao_Paulo',
-                    hour12: false
-                  })}
+                  {moment(venda.data).format('DD/MM/YYYY HH:mm:ss')}
                 </TableCell>
                 <TableCell>{venda.vendedor_nome}</TableCell>
                 <TableCell>R$ {Number(venda.valor_final).toFixed(2)}</TableCell>
