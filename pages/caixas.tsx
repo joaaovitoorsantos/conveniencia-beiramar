@@ -41,6 +41,21 @@ import 'moment/locale/pt-br';
 moment.locale('pt-br');
 moment.tz.setDefault('America/Sao_Paulo');
 
+// Função para formatar data com timezone
+const formatarDataComTimezone = (data: string) => {
+  console.log('Data recebida para formatação:', data);
+  console.log('Data interpretada pelo moment:', moment(data).format());
+  console.log('Timezone atual do moment:', moment.tz.guess());
+  const dataFormatada = moment.tz(data, 'America/Sao_Paulo').format('DD/MM/YYYY HH:mm:ss');
+  console.log('Data após formatação:', dataFormatada);
+  return dataFormatada;
+};
+
+// Função para formatar data curta com timezone
+const formatarDataCurtaComTimezone = (data: string) => {
+  return moment.tz(data, 'America/Sao_Paulo').format('DD/MM/YYYY HH:mm');
+};
+
 // Componente principal
 function CaixasComponent() {
   const router = useRouter();
@@ -67,6 +82,7 @@ function CaixasComponent() {
     try {
       const response = await axios.get('/api/caixas/atual');
       if (response.data) {
+        console.log('Data do caixa recebida da API:', response.data.data_abertura);
         setCaixaAtual({
           ...response.data,
           valor_inicial: Number(response.data.valor_inicial)
@@ -85,7 +101,6 @@ function CaixasComponent() {
       setHistoricoCaixas(response.data.caixas);
       setEstatisticas(response.data.estatisticas);
       setProdutosMaisVendidos(response.data.produtosMaisVendidos);
-      console.log('Formas de pagamento recebidas:', response.data.totaisPorFormaPagamento);
       setTotaisPorFormaPagamento(response.data.totaisPorFormaPagamento);
     } catch (error) {
       toast.error('Erro ao carregar histórico');
@@ -218,11 +233,11 @@ function CaixasComponent() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="data_abertura"
-                    tickFormatter={(value) => moment(value).format('DD/MM/YYYY HH:mm')}
+                    tickFormatter={(value) => formatarDataCurtaComTimezone(value)}
                   />
                   <YAxis />
                   <Tooltip 
-                    labelFormatter={(value) => moment(value).format('DD/MM/YYYY HH:mm')}
+                    labelFormatter={(value) => formatarDataCurtaComTimezone(value)}
                     formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, '']}
                   />
                   <Legend />
@@ -256,11 +271,11 @@ function CaixasComponent() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="data_abertura"
-                    tickFormatter={(value) => moment(value).format('DD/MM/YYYY HH:mm')}
+                    tickFormatter={(value) => formatarDataCurtaComTimezone(value)}
                   />
                   <YAxis />
                   <Tooltip 
-                    labelFormatter={(value) => moment(value).format('DD/MM/YYYY HH:mm')}
+                    labelFormatter={(value) => formatarDataCurtaComTimezone(value)}
                     formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, '']}
                   />
                   <Legend />
@@ -283,11 +298,11 @@ function CaixasComponent() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="data_abertura"
-                    tickFormatter={(value) => moment(value).format('DD/MM/YYYY HH:mm')}
+                    tickFormatter={(value) => formatarDataCurtaComTimezone(value)}
                   />
                   <YAxis />
                   <Tooltip 
-                    labelFormatter={(value) => moment(value).format('DD/MM/YYYY HH:mm')}
+                    labelFormatter={(value) => formatarDataCurtaComTimezone(value)}
                     formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, '']}
                   />
                   <Legend />
@@ -329,7 +344,6 @@ function CaixasComponent() {
               </TableHeader>
               <TableBody>
                 {totaisPorFormaPagamento?.map((pagamento) => {
-                  console.log('Renderizando pagamento:', pagamento);
                   return (
                     <TableRow key={pagamento.forma_pagamento}>
                       <TableCell>{formatarFormaPagamento(pagamento.forma_pagamento)}</TableCell>
@@ -366,7 +380,7 @@ function CaixasComponent() {
                   <div>
                     <p className="text-sm text-gray-500">Aberto em</p>
                     <p className="text-lg font-medium">
-                      {moment(caixaAtual.data_abertura).format('DD/MM/YYYY HH:mm:ss')}
+                      {formatarDataComTimezone(caixaAtual.data_abertura)}
                     </p>
                   </div>
                   <div>
