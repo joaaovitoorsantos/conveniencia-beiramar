@@ -23,6 +23,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "react-hot-toast";
 import axios from "axios";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import moment from 'moment-timezone';
+
+// Configurar timezone
+moment.tz.setDefault('America/Sao_Paulo');
 
 interface Venda {
   id: string;
@@ -186,7 +190,7 @@ function VendasComponent() {
                     vendas.map((venda) => (
                       <TableRow key={venda.id} className="hover:bg-gray-50">
                         <TableCell className="whitespace-nowrap">
-                          {new Date(venda.data).toLocaleString()}
+                          {moment(venda.data).format('DD/MM/YYYY HH:mm:ss')}
                         </TableCell>
                         <TableCell>{venda.vendedor_nome}</TableCell>
                         <TableCell>
@@ -273,7 +277,7 @@ function VendasComponent() {
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>
                   <span className="text-gray-500">Data/Hora</span>
-                  <p className="font-medium">{new Date(selectedSale.data).toLocaleString()}</p>
+                  <p className="font-medium">{moment(selectedSale.data).format('DD/MM/YYYY HH:mm:ss')}</p>
                 </div>
                 <div>
                   <span className="text-gray-500">Vendedor</span>
