@@ -10,7 +10,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       let dateFilter = '';
       switch (periodo) {
         case 'hoje':
-          dateFilter = 'DATE(data) = CURDATE()';
+          dateFilter = `data >= (
+            SELECT data_abertura 
+            FROM caixas 
+            WHERE data_fechamento IS NULL 
+            ORDER BY data_abertura DESC 
+            LIMIT 1
+          )`;
           break;
         case 'semana':
           dateFilter = 'data >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)';

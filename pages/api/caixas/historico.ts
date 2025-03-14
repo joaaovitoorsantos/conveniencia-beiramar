@@ -10,7 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       let dateFilter = '';
       switch (periodo) {
         case 'hoje':
-          dateFilter = 'DATE(data_abertura) = CURDATE()';
+          dateFilter = `c.data_fechamento IS NULL`;
           break;
         case 'semana':
           dateFilter = 'data_abertura >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)';
@@ -49,7 +49,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         FROM caixas c
         LEFT JOIN usuarios u ON c.operador_id = u.id
         LEFT JOIN vendas v ON v.caixa_id = c.id
-        WHERE ${dateFilter.replace('data_abertura', 'c.data_abertura')}
+        WHERE ${dateFilter}
         GROUP BY c.id
         ORDER BY c.data_abertura DESC
       `);
@@ -65,7 +65,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               SELECT SUM(valor_final - valor_inicial)
               FROM caixas 
               WHERE data_fechamento IS NOT NULL
-              AND ${dateFilter}
+              AND data_abertura >= (
+                SELECT MAX(data_abertura) 
+                FROM caixas 
+                WHERE data_fechamento IS NULL
+              )
             ), 
             0
           ) as saldo_total,
@@ -82,7 +86,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ) as lucro_bruto
         FROM caixas c
         LEFT JOIN vendas v ON v.caixa_id = c.id
-        WHERE ${dateFilter.replace('data_abertura', 'c.data_abertura')}
+        WHERE ${dateFilter}
       `);
 
       // Adicionar query para produtos mais vendidos
@@ -97,24 +101,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         FROM produtos p
         INNER JOIN itens_venda iv ON p.id = iv.produto_id
         INNER JOIN vendas v ON v.id = iv.venda_id
-        WHERE ${dateFilter.replace('data_abertura', 'v.data')}
+        INNER JOIN caixas c ON v.caixa_id = c.id
+        WHERE ${dateFilter}
         GROUP BY p.id
         ORDER BY total_quantidade DESC
         LIMIT 10
       `);
 
       // Adicionar query para totais por forma de pagamento
+      console.log('Iniciando busca de formas de pagamento...');
       const [totaisPorFormaPagamento] = await pool.query<RowDataPacket[]>(`
         SELECT 
-          pv.forma_pagamento,
+          COALESCE(pv.forma_pagamento, 'não informado') as forma_pagamento,
           COUNT(*) as quantidade_pagamentos,
           SUM(pv.valor) as valor_total
         FROM pagamentos_venda pv
         INNER JOIN vendas v ON v.id = pv.venda_id
-        WHERE ${dateFilter.replace('data_abertura', 'v.data')}
+        INNER JOIN caixas c ON v.caixa_id = c.id
+        WHERE ${dateFilter}
         GROUP BY pv.forma_pagamento
         ORDER BY valor_total DESC
       `);
+
+      console.log('Resultado bruto das formas de pagamento:', JSON.stringify(totaisPorFormaPagamento, null, 2));
+      console.log('Número de formas de pagamento encontradas:', totaisPorFormaPagamento.length);
+      
+      // Log detalhado de cada forma de pagamento
+      totaisPorFormaPagamento.forEach((pagamento, index) => {
+        console.log(`Forma de Pagamento ${index + 1}:`, {
+          forma: pagamento.forma_pagamento,
+          quantidade: pagamento.quantidade_pagamentos,
+          total: pagamento.valor_total
+        });
+      });
 
       res.status(200).json({
         caixas,

@@ -15,13 +15,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   LineChart, 
@@ -36,7 +29,9 @@ import {
   Legend,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  AreaChart,
+  Area
 } from 'recharts';
 import { Package, Wallet } from "lucide-react";
 
@@ -48,7 +43,6 @@ function CaixasComponent() {
   const [loading, setLoading] = useState(false);
   const [caixaAtual, setCaixaAtual] = useState<any>(null);
   const [historicoCaixas, setHistoricoCaixas] = useState<any[]>([]);
-  const [periodoSelecionado, setPeriodoSelecionado] = useState('hoje');
   const [estatisticas, setEstatisticas] = useState({
     totalVendas: 0,
     mediaVendas: 0,
@@ -61,7 +55,7 @@ function CaixasComponent() {
   useEffect(() => {
     verificarCaixa();
     carregarHistorico();
-  }, [periodoSelecionado]);
+  }, []);
 
   const verificarCaixa = async () => {
     try {
@@ -81,10 +75,11 @@ function CaixasComponent() {
 
   const carregarHistorico = async () => {
     try {
-      const response = await axios.get(`/api/caixas/historico?periodo=${periodoSelecionado}`);
+      const response = await axios.get(`/api/caixas/historico?periodo=hoje`);
       setHistoricoCaixas(response.data.caixas);
       setEstatisticas(response.data.estatisticas);
       setProdutosMaisVendidos(response.data.produtosMaisVendidos);
+      console.log('Formas de pagamento recebidas:', response.data.totaisPorFormaPagamento);
       setTotaisPorFormaPagamento(response.data.totaisPorFormaPagamento);
     } catch (error) {
       toast.error('Erro ao carregar histórico');
@@ -173,51 +168,35 @@ function CaixasComponent() {
                 <h1 className="text-2xl font-bold text-gray-900">Gestão de Caixa</h1>
               </div>
             </div>
-            <div className="flex items-center">
-              <Select
-                value={periodoSelecionado}
-                onValueChange={setPeriodoSelecionado}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Selecione o período" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="hoje">Hoje</SelectItem>
-                  <SelectItem value="semana">Última Semana</SelectItem>
-                  <SelectItem value="mes">Último Mês</SelectItem>
-                  <SelectItem value="ano">Último Ano</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Cards de Estatísticas */}
+        {/* Cards de Estatísticas do Caixa Atual */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card className="p-6">
-            <h3 className="text-sm font-medium text-gray-500">Total de Vendas</h3>
+            <h3 className="text-sm font-medium text-gray-500">Total de Vendas (Caixa Atual)</h3>
             <p className="mt-2 text-3xl font-semibold text-gray-900">
               R$ {estatisticas.totalVendas.toFixed(2)}
             </p>
           </Card>
           <Card className="p-6">
-            <h3 className="text-sm font-medium text-gray-500">Média por Venda</h3>
+            <h3 className="text-sm font-medium text-gray-500">Média por Venda (Caixa Atual)</h3>
             <p className="mt-2 text-3xl font-semibold text-gray-900">
               R$ {estatisticas.mediaVendas.toFixed(2)}
             </p>
           </Card>
           <Card className="p-6">
-            <h3 className="text-sm font-medium text-gray-500">Total de Caixas</h3>
+            <h3 className="text-sm font-medium text-gray-500">Caixas Exibidos</h3>
             <p className="mt-2 text-3xl font-semibold text-gray-900">
               {estatisticas.totalCaixas}
             </p>
           </Card>
           <Card className="p-6">
-            <h3 className="text-sm font-medium text-gray-500">Saldo Total</h3>
+            <h3 className="text-sm font-medium text-gray-500">Saldo Total (Caixa Atual)</h3>
             <p className="mt-2 text-3xl font-semibold text-gray-900">
-              R$ {estatisticas.saldoTotal.toFixed(2)}
+              R$ {(Number(caixaAtual?.valor_inicial || 0) + Number(estatisticas.totalVendas)).toFixed(2)}
             </p>
           </Card>
         </div>
@@ -226,38 +205,57 @@ function CaixasComponent() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* Gráfico de Movimentação do Caixa */}
           <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Movimentação do Caixa</h3>
+            <h3 className="text-lg font-semibold mb-4">Movimentação do Caixa Atual</h3>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={historicoCaixas}>
+                <AreaChart data={historicoCaixas}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="data" />
+                  <XAxis 
+                    dataKey="data_abertura"
+                    tickFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
+                  />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip 
+                    labelFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
+                    formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, '']}
+                  />
                   <Legend />
-                  <Line type="monotone" dataKey="valor_final" stroke="#8884d8" name="Valor Final" />
-                  <Line type="monotone" dataKey="valor_inicial" stroke="#82ca9d" name="Valor Inicial" />
-                </LineChart>
+                  <Area 
+                    type="monotone" 
+                    dataKey="valor_inicial" 
+                    stackId="1"
+                    stroke="#82ca9d"
+                    fill="#82ca9d"
+                    name="Valor Inicial" 
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey={(data) => Number(data.total_vendas)} 
+                    stackId="1"
+                    stroke="#8884d8"
+                    fill="#8884d8"
+                    name="Vendas" 
+                  />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           </Card>
 
-          {/* Gráfico de Vendas por Período */}
+          {/* Gráfico de Vendas */}
           <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Vendas por Período</h3>
+            <h3 className="text-lg font-semibold mb-4">Vendas do Caixa Atual</h3>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={historicoCaixas}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="data" />
+                  <XAxis 
+                    dataKey="data_abertura"
+                    tickFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
+                  />
                   <YAxis />
                   <Tooltip 
-                    formatter={(value: any) => {
-                      if (typeof value === 'number') {
-                        return `R$ ${value.toFixed(2)}`;
-                      }
-                      return value;
-                    }}
+                    labelFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
+                    formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, '']}
                   />
                   <Legend />
                   <Bar 
@@ -270,22 +268,21 @@ function CaixasComponent() {
             </div>
           </Card>
 
-          {/* Novo Gráfico de Faturamento */}
+          {/* Gráfico de Faturamento */}
           <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Análise de Faturamento</h3>
+            <h3 className="text-lg font-semibold mb-4">Faturamento do Caixa Atual</h3>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={historicoCaixas}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="data" />
+                  <XAxis 
+                    dataKey="data_abertura"
+                    tickFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
+                  />
                   <YAxis />
                   <Tooltip 
-                    formatter={(value: any) => {
-                      if (typeof value === 'number') {
-                        return `R$ ${value.toFixed(2)}`;
-                      }
-                      return value;
-                    }}
+                    labelFormatter={(value) => new Date(value).toLocaleString('pt-BR')}
+                    formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, '']}
                   />
                   <Legend />
                   <Bar 
@@ -303,6 +300,55 @@ function CaixasComponent() {
             </div>
           </Card>
         </div>
+
+                {/* Formas de Pagamento */}
+        <Card className="mb-8">
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <Wallet className="h-5 w-5" />
+              <h2 className="text-xl font-semibold">Formas de Pagamento</h2>
+            </div>
+            {/* Debug info */}
+            <div className="text-xs text-gray-500 mb-4">
+              Total de formas de pagamento: {totaisPorFormaPagamento?.length || 0}
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Forma de Pagamento</TableHead>
+                  <TableHead className="text-right">Quantidade</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Média por Pagamento</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {totaisPorFormaPagamento?.map((pagamento) => {
+                  console.log('Renderizando pagamento:', pagamento);
+                  return (
+                    <TableRow key={pagamento.forma_pagamento}>
+                      <TableCell>{formatarFormaPagamento(pagamento.forma_pagamento)}</TableCell>
+                      <TableCell className="text-right">{pagamento.quantidade_pagamentos}</TableCell>
+                      <TableCell className="text-right">
+                        R$ {Number(pagamento.valor_total).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        R$ {(Number(pagamento.valor_total) / pagamento.quantidade_pagamentos).toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {(!totaisPorFormaPagamento || totaisPorFormaPagamento.length === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      Nenhum pagamento no período
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+
 
         {/* Caixa Atual */}
         <Card className="mb-8">
@@ -405,49 +451,8 @@ function CaixasComponent() {
           </div>
         </Card>
 
-        {/* Formas de Pagamento */}
-        <Card className="mb-8">
-          <div className="p-6">
-            <div className="flex items-center gap-2 mb-6">
-              <Wallet className="h-5 w-5" />
-              <h2 className="text-xl font-semibold">Formas de Pagamento</h2>
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Forma de Pagamento</TableHead>
-                  <TableHead className="text-right">Quantidade</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Média por Pagamento</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {totaisPorFormaPagamento?.map((pagamento) => (
-                  <TableRow key={pagamento.forma_pagamento}>
-                    <TableCell>{formatarFormaPagamento(pagamento.forma_pagamento)}</TableCell>
-                    <TableCell className="text-right">{pagamento.quantidade_pagamentos}</TableCell>
-                    <TableCell className="text-right">
-                      R$ {Number(pagamento.valor_total).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      R$ {(Number(pagamento.valor_total) / pagamento.quantidade_pagamentos).toFixed(2)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {(!totaisPorFormaPagamento || totaisPorFormaPagamento.length === 0) && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
-                      Nenhum pagamento no período
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
-
         {/* Histórico de Caixas */}
-        <Card>
+        {/* <Card>
           <div className="p-6">
             <h2 className="text-xl font-semibold mb-6">Histórico de Caixas</h2>
             <ScrollArea className="h-[400px]">
@@ -475,8 +480,8 @@ function CaixasComponent() {
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs ${
                           caixa.data_fechamento 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-yellow-100 text-yellow-800'
+                            ? 'bg-red-100 text-red-800' 
+                            : 'bg-green-100 text-green-800'
                         }`}>
                           {caixa.data_fechamento ? 'Fechado' : 'Aberto'}
                         </span>
@@ -487,7 +492,7 @@ function CaixasComponent() {
               </Table>
             </ScrollArea>
           </div>
-        </Card>
+        </Card> */}
       </div>
     </div>
   );
