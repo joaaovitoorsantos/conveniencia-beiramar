@@ -9,6 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
@@ -178,6 +179,8 @@ function PDVComponent() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [selectedClient, setSelectedClient] = useState<Cliente | null>(null);
   const [openCombobox, setOpenCombobox] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [currentSaleData, setCurrentSaleData] = useState<any>(null);
 
   // Funções auxiliares
   const addPaymentMethod = () => {
@@ -514,17 +517,32 @@ function PDVComponent() {
         };
       }
 
-      await axios.post('/api/vendas', saleData);
+      const response = await axios.post('/api/vendas', saleData);
+      
+      // Guarda os dados da venda para impressão
+      setCurrentSaleData({
+        items: cartItems,
+        total: calculateSubtotal(),
+        discount: discountAmount,
+        totalPaid: totalPaid,
+        paymentMethods,
+        date: new Date(),
+        change: totalPaid - (calculateSubtotal() - discountAmount)
+      });
 
-      toast.success('Venda finalizada com sucesso');
+      // Limpa o carrinho e fecha o modal de finalização
       setCartItems([]);
       setPaymentMethods([]);
       setDiscount({ type: 'fixed', value: 0 });
-      setSelectedClient(null); // Limpa o cliente selecionado
+      setSelectedClient(null);
       setIsFinalizingOpen(false);
+      
+      // Abre o modal de impressão
+      setIsPrintModalOpen(true);
 
       // Recarrega as últimas vendas
       fetchUltimasVendas();
+      
     } catch (error) {
       console.error('Erro ao finalizar venda:', error);
       toast.error('Erro ao finalizar venda');
@@ -553,6 +571,99 @@ function PDVComponent() {
       }
     }, 100);
   };
+
+  // Função para imprimir o cupom
+  const handlePrint = useCallback(() => {
+    const printWindow = window.open('', '', 'width=400,height=600');
+    if (!printWindow) return;
+
+    const content = `
+      <html>
+        <head>
+          <title>Cupom de Venda</title>
+          <style>
+            body {
+              font-family: monospace;
+              margin: 0;
+              padding: 20px;
+              width: 300px;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 20px;
+            }
+            .item {
+              margin: 5px 0;
+            }
+            .divider {
+              border-top: 1px dashed #000;
+              margin: 10px 0;
+            }
+            .total {
+              font-weight: bold;
+              margin: 10px 0;
+            }
+            .payment {
+              margin: 5px 0;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 20px;
+              font-size: 12px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2>Conveniência Beira Mar</h2>
+            <p>${new Date(currentSaleData.date).toLocaleString()}</p>
+          </div>
+          
+          <div class="items">
+            ${currentSaleData.items.map((item: any) => `
+              <div class="item">
+                <div>${item.quantity}x ${item.name}</div>
+                <div>${item.quantity} UN x ${item.price.toFixed(2)} = R$ ${item.total.toFixed(2)}</div>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="total">
+            <div>Subtotal: R$ ${currentSaleData.total.toFixed(2)}</div>
+            ${currentSaleData.discount > 0 ? 
+              `<div>Desconto: R$ ${currentSaleData.discount.toFixed(2)}</div>` : 
+              ''}
+            <div>Total: R$ ${(currentSaleData.total - currentSaleData.discount).toFixed(2)}</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="payments">
+            ${currentSaleData.paymentMethods.map((payment: any) => `
+              <div class="payment">
+                ${payment.method.toUpperCase()}: R$ ${payment.amount.toFixed(2)}
+              </div>
+            `).join('')}
+            ${currentSaleData.change > 0 ? 
+              `<div class="payment">Troco: R$ ${currentSaleData.change.toFixed(2)}</div>` : 
+              ''}
+          </div>
+
+          <div class="footer">
+            <p>Obrigado pela preferência!</p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(content);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  }, [currentSaleData]);
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
@@ -1191,6 +1302,49 @@ function PDVComponent() {
               Fechar
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPrintModalOpen} onOpenChange={(open) => {
+        // Só permite fechar o modal através dos botões
+        if (open === false && isPrintModalOpen) return;
+        setIsPrintModalOpen(open);
+      }}>
+        <DialogContent onKeyDown={(e) => {
+          // Previne o fechamento com ESC
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            return;
+          }
+          // Imprime quando pressionar Enter
+          if (e.key === 'Enter') {
+            handlePrint();
+            setIsPrintModalOpen(false);
+          }
+        }}>
+          <DialogHeader>
+            <DialogTitle>Imprimir Cupom</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p>Deseja imprimir o cupom desta venda?</p>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsPrintModalOpen(false)}
+            >
+              Não (Esc)
+            </Button>
+            <Button 
+              onClick={() => {
+                handlePrint();
+                setIsPrintModalOpen(false);
+              }}
+              autoFocus // Foca automaticamente no botão Sim
+            >
+              Sim (Enter)
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
