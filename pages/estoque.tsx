@@ -87,6 +87,7 @@ export default function Estoque() {
   const [deleteProductId, setDeleteProductId] = useState<string | null>(null);
   const [deleteCategoryId, setDeleteCategoryId] = useState<string | null>(null);
   const [totalMercadorias, setTotalMercadorias] = useState(0);
+  const [totalVendas, setTotalVendas] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
 
   // Carregar produtos e categorias
@@ -108,10 +109,17 @@ export default function Estoque() {
       setProducts(formattedProducts);
 
       // Calcular total em mercadorias (baseado no preço de custo)
-      const total = formattedProducts.reduce((acc: number, produto: any) => {
-        return acc + (Number(produto.preco_custo) * Number(produto.estoque));
+      const totalCusto = formattedProducts.reduce((acc: number, produto: any) => {
+        return acc + (Number(produto.preco_custo || 0) * Number(produto.estoque));
       }, 0);
-      setTotalMercadorias(total);
+      setTotalMercadorias(totalCusto);
+
+      // Calcular total potencial em vendas
+      const totalPotencial = formattedProducts.reduce((acc: number, produto: any) => {
+        return acc + (Number(produto.preco_venda || 0) * Number(produto.estoque));
+      }, 0);
+      setTotalVendas(totalPotencial);
+
     } catch (error) {
       toast.error('Erro ao carregar produtos');
     } finally {
@@ -135,6 +143,9 @@ export default function Estoque() {
     try {
       setLoading(true);
 
+      // Encontrar a categoria completa
+      const selectedCategoryData = categories.find(c => c.id === selectedCategory);
+
       // Formatar dados do produto
       const productData = {
         ...newProduct,
@@ -143,7 +154,7 @@ export default function Estoque() {
         preco_custo: newProduct.preco_custo ? parseFloat(newProduct.preco_custo as string) : null,
         estoque: parseInt(newProduct.estoque as string || '0'),
         estoque_minimo: newProduct.estoque_minimo ? parseInt(newProduct.estoque_minimo as string) : null,
-        categoria_nome: categories.find(c => c.id === selectedCategory)?.nome
+        categoria_nome: selectedCategoryData?.nome || null
       };
 
       if (isEditing) {
@@ -166,6 +177,7 @@ export default function Estoque() {
       setNewProduct({});
       setSelectedCategory("");
       setIsEditing(false);
+      setSearchCategory('');
       fetchProducts();
     } catch (error) {
       console.error('Erro ao salvar produto:', error);
@@ -248,10 +260,34 @@ export default function Estoque() {
 
   // Função para abrir modal de edição
   const handleEdit = (product: Product) => {
-    setNewProduct(product);
-    setSelectedCategory(product.categoria_id || "");
+    console.log('Editing product:', product);
+    
+    // Encontrar a categoria pelo nome quando não temos o ID
+    let categoryId = product.categoria_id;
+    if (!categoryId && product.categoria_nome) {
+      const category = categories.find(c => c.nome === product.categoria_nome);
+      categoryId = category?.id;
+    }
+    
+    console.log('Found category ID:', categoryId);
+    
+    // Formatar a data de validade mantendo o resto do produto inalterado
+    const formattedProduct = {
+      ...product,
+      data_validade: product.data_validade 
+        ? new Date(product.data_validade).toISOString().split('T')[0]
+        : undefined
+    };
+    
+    setNewProduct(formattedProduct);
+    setSelectedCategory(categoryId || "");
     setIsEditing(true);
     setIsAddProductOpen(true);
+    
+    // Usar o nome da categoria que já temos
+    if (product.categoria_nome) {
+      setSearchCategory(product.categoria_nome);
+    }
   };
 
   // Função para exportar relatório em PDF
@@ -416,7 +452,15 @@ export default function Estoque() {
             <Button variant="outline" onClick={() => router.push('/compras')}>
               Compras
             </Button>
-            <Dialog open={isAddProductOpen} onOpenChange={setIsAddProductOpen}>
+            <Dialog open={isAddProductOpen} onOpenChange={(open) => {
+              setIsAddProductOpen(open);
+              if (!open) {
+                setNewProduct({});
+                setSelectedCategory("");
+                setIsEditing(false);
+                setSearchCategory('');
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button>Adicionar Produto</Button>
               </DialogTrigger>
@@ -443,7 +487,6 @@ export default function Estoque() {
                         value={newProduct.nome || ''}
                         onChange={(e) => setNewProduct({ ...newProduct, nome: e.target.value })}
                         placeholder="Nome do produto"
-                        disabled={isEditing}
                       />
                     </div>
                   </div>
@@ -465,7 +508,11 @@ export default function Estoque() {
                       </PopoverTrigger>
                       <PopoverContent className="w-full p-0">
                         <Command>
-                          <CommandInput placeholder="Buscar categoria..." />
+                          <CommandInput 
+                            placeholder="Buscar categoria..."
+                            value={searchCategory}
+                            onValueChange={setSearchCategory}
+                          />
                           <CommandList>
                             <CommandEmpty>Nenhuma categoria encontrada.</CommandEmpty>
                             <CommandGroup>
@@ -473,6 +520,7 @@ export default function Estoque() {
                                 <CommandItem
                                   key={category.id}
                                   value={category.nome}
+                                  selected={category.id === selectedCategory}
                                   onSelect={(currentValue) => {
                                     const selected = categories.find(cat =>
                                       cat.nome.toLowerCase() === currentValue.toLowerCase()
@@ -484,6 +532,7 @@ export default function Estoque() {
                                         categoria_id: selected.id,
                                         categoria_nome: selected.nome
                                       });
+                                      setSearchCategory(selected.nome);
                                     }
                                     setOpen(false);
                                   }}
@@ -491,7 +540,7 @@ export default function Estoque() {
                                   <Check
                                     className={cn(
                                       "mr-2 h-4 w-4",
-                                      selectedCategory === category.id ? "opacity-100" : "opacity-0"
+                                      category.id === selectedCategory ? "opacity-100" : "opacity-0"
                                     )}
                                   />
                                   {category.nome}
@@ -794,6 +843,15 @@ export default function Estoque() {
                   <div className="text-sm text-gray-500">Total em Mercadorias</div>
                   <div className="text-2xl font-bold text-blue-600">
                     R$ {totalMercadorias.toFixed(2)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500">Total em Vendas</div>
+                  <div className="text-2xl font-bold text-green-600">
+                    R$ {totalVendas.toFixed(2)}
+                  </div>
+                  <div className="mt-1 text-sm text-gray-500">
+                    Lucro Potencial: <span className="font-medium text-green-600">R$ {(totalVendas - totalMercadorias).toFixed(2)} ({((totalVendas - totalMercadorias) / totalMercadorias * 100).toFixed(1)}%)</span>
                   </div>
                 </div>
               </div>

@@ -27,6 +27,7 @@ import { toast } from "react-hot-toast";
 import axios from "axios";
 import { Users, ArrowLeft, Search, Plus } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 interface Cliente {
   id: string;
@@ -59,6 +60,19 @@ function ClientesComponent() {
   const [selectedClient, setSelectedClient] = useState<Cliente | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [clientDetails, setClientDetails] = useState<any>(null);
+  const [generalPaymentDialog, setGeneralPaymentDialog] = useState({
+    open: false,
+    valorTotal: 0,
+    valorPagamento: '',
+    forma_pagamento: 'dinheiro'
+  });
+  const [paymentDialog, setPaymentDialog] = useState({
+    open: false,
+    contaId: '',
+    valorTotal: 0,
+    valorPagamento: ''
+  });
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   useEffect(() => {
     if (!hasPermission('vendas')) {
@@ -369,44 +383,46 @@ function ClientesComponent() {
 
                 <div>
                   <h3 className="text-sm font-medium mb-2">Histórico de Compras</h3>
-                  <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="text-xs">Data</TableHead>
-                          <TableHead className="text-xs">Valor</TableHead>
-                          <TableHead className="text-xs">Pagamento</TableHead>
-                          <TableHead className="text-xs">Itens</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {clientDetails.compras.map((compra: any) => (
-                          <TableRow key={compra.id} className="text-xs">
-                            <TableCell>{new Date(compra.data).toLocaleString()}</TableCell>
-                            <TableCell>R$ {Number(compra.valor_final).toFixed(2)}</TableCell>
-                            <TableCell className="max-w-[200px]">
-                              {compra.pagamentos.map((p: any) => (
-                                <div key={p.forma_pagamento} className="whitespace-nowrap">
-                                  {formatarFormaPagamento(p.forma_pagamento)}: R$ {Number(p.valor).toFixed(2)}
-                                </div>
-                              ))}
-                            </TableCell>
-                            <TableCell className="max-w-[250px]">
-                              <div className="space-y-1">
-                                {compra.itens.map((item: any, index: number) => (
-                                  <div key={index} className="flex justify-between text-xs">
-                                    <span className="truncate">{item.quantidade}x {item.produto_nome}</span>
-                                    <span className="text-gray-600 ml-2 shrink-0">
-                                      R$ {Number(item.valor_total).toFixed(2)}
-                                    </span>
+                  <div className="border rounded-lg">
+                    <div className="max-h-[300px] overflow-auto">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-white">
+                          <TableRow>
+                            <TableHead className="text-xs">Data</TableHead>
+                            <TableHead className="text-xs">Valor</TableHead>
+                            <TableHead className="text-xs">Pagamento</TableHead>
+                            <TableHead className="text-xs">Itens</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {clientDetails.compras.map((compra: any) => (
+                            <TableRow key={compra.id} className="text-xs">
+                              <TableCell>{new Date(compra.data).toLocaleString()}</TableCell>
+                              <TableCell>R$ {Number(compra.valor_final).toFixed(2)}</TableCell>
+                              <TableCell className="max-w-[200px]">
+                                {compra.pagamentos.map((p: any) => (
+                                  <div key={p.forma_pagamento} className="whitespace-nowrap">
+                                    {formatarFormaPagamento(p.forma_pagamento)}: R$ {Number(p.valor).toFixed(2)}
                                   </div>
                                 ))}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                              </TableCell>
+                              <TableCell className="max-w-[250px]">
+                                <div className="space-y-1">
+                                  {compra.itens.map((item: any, index: number) => (
+                                    <div key={index} className="flex justify-between text-xs">
+                                      <span className="truncate">{item.quantidade}x {item.produto_nome}</span>
+                                      <span className="text-gray-600 ml-2 shrink-0">
+                                        R$ {Number(item.valor_total).toFixed(2)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 </div>
 
@@ -419,46 +435,187 @@ function ClientesComponent() {
                     </TabsList>
                     
                     <TabsContent value="pendentes">
-                      <div className="border rounded-lg overflow-hidden">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="text-xs">Vencimento</TableHead>
-                              <TableHead className="text-xs">Valor</TableHead>
-                              <TableHead className="text-xs">Status</TableHead>
-                              <TableHead className="text-xs">Ações</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {clientDetails.contas
+                      <div className="flex justify-between items-center mb-4">
+                        <div className="space-y-1">
+                          <div className="text-sm font-medium">
+                            Total Pendente: <span className="text-red-600">R$ {clientDetails.contas
                               .filter(conta => conta.status === 'pendente')
-                              .map((conta: any) => (
-                                <TableRow key={conta.id} className="text-xs">
-                                  <TableCell>{new Date(conta.data_vencimento).toLocaleDateString()}</TableCell>
-                                  <TableCell>R$ {Number(conta.valor).toFixed(2)}</TableCell>
-                                  <TableCell>
-                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
-                                      new Date(conta.data_vencimento) < new Date() 
-                                        ? 'bg-red-100 text-red-800'
-                                        : 'bg-yellow-100 text-yellow-800'
-                                    }`}>
-                                      {new Date(conta.data_vencimento) < new Date() ? 'Vencida' : 'Pendente'}
-                                    </span>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-7 text-xs"
-                                      onClick={() => handlePayment(conta.id, conta.valor)}
-                                    >
-                                      Registrar Pagamento
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                              .reduce((acc, conta) => acc + Number(conta.valor), 0)
+                              .toFixed(2)}</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {clientDetails.contas.filter(conta => conta.status === 'pendente').length} contas em aberto
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const totalPendente = clientDetails.contas
+                              .filter(conta => conta.status === 'pendente')
+                              .reduce((acc, conta) => acc + Number(conta.valor), 0);
+                            
+                            setGeneralPaymentDialog({
+                              open: true,
+                              valorTotal: totalPendente,
+                              valorPagamento: '',
+                              forma_pagamento: 'dinheiro'
+                            });
+                          }}
+                          className="flex items-center gap-2"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <rect width="20" height="14" x="2" y="5" rx="2" />
+                            <line x1="2" x2="22" y1="10" y2="10" />
+                          </svg>
+                          Pagamento Geral
+                        </Button>
+                      </div>
+                      <div className="border rounded-lg overflow-hidden">
+                        <div className="max-h-[300px] overflow-auto">
+                          <Table>
+                            <TableHeader className="sticky top-0 bg-white">
+                              <TableRow>
+                                <TableHead className="text-xs">Vencimento</TableHead>
+                                <TableHead className="text-xs">Valor</TableHead>
+                                <TableHead className="text-xs">Dias</TableHead>
+                                <TableHead className="text-xs">Venda</TableHead>
+                                <TableHead className="text-xs">Status</TableHead>
+                                <TableHead className="text-xs text-right">Ações</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {clientDetails.contas
+                                .filter(conta => conta.status === 'pendente')
+                                .sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime())
+                                .map((conta: any) => {
+                                  const vencimento = new Date(conta.data_vencimento);
+                                  const hoje = new Date();
+                                  const diffTime = vencimento.getTime() - hoje.getTime();
+                                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                  const isExpanded = expandedRow === conta.id;
+                                  
+                                  return (
+                                    <>
+                                      <TableRow 
+                                        key={conta.id} 
+                                        className={cn(
+                                          "text-xs cursor-pointer hover:bg-gray-50",
+                                          isExpanded && "bg-gray-50"
+                                        )}
+                                        onClick={() => setExpandedRow(isExpanded ? null : conta.id)}
+                                      >
+                                        <TableCell>{new Date(conta.data_vencimento).toLocaleDateString()}</TableCell>
+                                        <TableCell className="font-medium">
+                                          R$ {Number(conta.valor).toFixed(2)}
+                                        </TableCell>
+                                        <TableCell>
+                                          <span className={cn(
+                                            "px-2 py-0.5 rounded-full text-[10px] font-medium",
+                                            diffDays < 0 ? "bg-red-100 text-red-800" : 
+                                            diffDays === 0 ? "bg-yellow-100 text-yellow-800" :
+                                            "bg-green-100 text-green-800"
+                                          )}>
+                                            {diffDays < 0 ? `${Math.abs(diffDays)} dias atraso` : 
+                                             diffDays === 0 ? "Vence hoje" :
+                                             `${diffDays} dias restantes`}
+                                          </span>
+                                        </TableCell>
+                                        <TableCell>
+                                          <div className="flex flex-col">
+                                            <span className="font-medium">#{conta.venda_id.substring(0, 8)}</span>
+                                            <span className="text-muted-foreground">
+                                              {new Date(conta.criado_em).toLocaleDateString()}
+                                            </span>
+                                          </div>
+                                        </TableCell>
+                                        <TableCell>
+                                          <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                                            diffDays < 0 
+                                              ? 'bg-red-100 text-red-800'
+                                              : 'bg-yellow-100 text-yellow-800'
+                                          }`}>
+                                            {diffDays < 0 ? 'Vencida' : 'Pendente'}
+                                          </span>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7 text-xs"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setPaymentDialog({
+                                                open: true,
+                                                contaId: conta.id,
+                                                valorTotal: Number(conta.valor),
+                                                valorPagamento: conta.valor
+                                              });
+                                            }}
+                                          >
+                                            Registrar Pagamento
+                                          </Button>
+                                        </TableCell>
+                                      </TableRow>
+                                      {isExpanded && (
+                                        <TableRow className="bg-gray-50">
+                                          <TableCell colSpan={6} className="p-4">
+                                            <div className="space-y-4">
+                                              <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                  <h4 className="text-sm font-medium mb-2">Detalhes da Venda</h4>
+                                                  <div className="space-y-1 text-xs">
+                                                    <p><span className="font-medium">Data da Venda:</span> {new Date(conta.criado_em).toLocaleString()}</p>
+                                                    <p><span className="font-medium">Valor Total:</span> R$ {Number(conta.valor).toFixed(2)}</p>
+                                                    <p><span className="font-medium">Vencimento:</span> {new Date(conta.data_vencimento).toLocaleDateString()}</p>
+                                                  </div>
+                                                </div>
+                                                {conta.venda && (
+                                                  <div>
+                                                    <h4 className="text-sm font-medium mb-2">Itens da Venda</h4>
+                                                    <div className="space-y-1">
+                                                      {conta.venda.itens?.map((item: any, index: number) => (
+                                                        <div key={index} className="flex justify-between text-xs">
+                                                          <span>{item.quantidade}x {item.produto_nome}</span>
+                                                          <span>R$ {Number(item.valor_total).toFixed(2)}</span>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  </div>
+                                                )}
+                                              </div>
+                                              {conta.venda?.pagamentos && (
+                                                <div>
+                                                  <h4 className="text-sm font-medium mb-2">Pagamentos Realizados</h4>
+                                                  <div className="space-y-1">
+                                                    {conta.venda.pagamentos.map((pagamento: any, index: number) => (
+                                                      <div key={index} className="flex justify-between text-xs">
+                                                        <span>{formatarFormaPagamento(pagamento.forma_pagamento)}</span>
+                                                        <span>R$ {Number(pagamento.valor).toFixed(2)}</span>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </TableCell>
+                                        </TableRow>
+                                      )}
+                                    </>
+                                  );
+                                })}
+                            </TableBody>
+                          </Table>
+                        </div>
                       </div>
                     </TabsContent>
 

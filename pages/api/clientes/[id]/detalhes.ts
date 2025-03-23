@@ -37,7 +37,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         WHERE v.cliente_id = ?
         GROUP BY v.id
         ORDER BY v.data DESC
-        LIMIT 10
       `, [id]);
 
       // Buscar contas a receber
