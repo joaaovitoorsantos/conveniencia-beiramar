@@ -36,7 +36,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { Check, ChevronsUpDown, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   AlertDialog,
@@ -89,6 +89,20 @@ export default function Estoque() {
   const [totalMercadorias, setTotalMercadorias] = useState(0);
   const [totalVendas, setTotalVendas] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
+  const [columnSorts, setColumnSorts] = useState<{
+    [key: string]: 'asc' | 'desc' | null;
+  }>({
+    codigo: null,
+    nome: null,
+    categoria_nome: null,
+    estoque: null,
+    preco_venda: null
+  });
+  const [showLowStock, setShowLowStock] = useState(false);
+  const [showOutOfStock, setShowOutOfStock] = useState(false);
+  const [showExpired, setShowExpired] = useState(false);
+  const [showNearExpiry, setShowNearExpiry] = useState(false);
+  const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
 
   // Carregar produtos e categorias
   useEffect(() => {
@@ -241,11 +255,46 @@ export default function Estoque() {
     }
   };
 
-  const filteredProducts = products.filter(product =>
-    product.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.codigo.includes(searchTerm) ||
-    product.categoria_nome?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const getFilteredProducts = () => {
+    let filtered = [...products];
+    
+    if (searchTerm) {
+      filtered = filtered.filter(product =>
+        product.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.codigo.includes(searchTerm) ||
+        product.categoria_nome?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    if (showLowStock) {
+      filtered = filtered.filter(p => 
+        p.estoque > 0 && p.estoque <= (p.estoque_minimo || 0)
+      );
+    }
+
+    if (showOutOfStock) {
+      filtered = filtered.filter(p => p.estoque === 0);
+    }
+
+    if (showExpired) {
+      filtered = filtered.filter(p => 
+        p.data_validade && new Date(p.data_validade) < new Date()
+      );
+    }
+
+    if (showNearExpiry) {
+      const thirtyDaysFromNow = new Date();
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+      
+      filtered = filtered.filter(p => 
+        p.data_validade && 
+        new Date(p.data_validade) > new Date() &&
+        new Date(p.data_validade) <= thirtyDaysFromNow
+      );
+    }
+
+    return filtered;
+  };
 
   const getProductsByCategory = (categoryId: string) => {
     return products.filter(product => product.categoria_id === categoryId).length;
@@ -268,8 +317,6 @@ export default function Estoque() {
       const category = categories.find(c => c.nome === product.categoria_nome);
       categoryId = category?.id;
     }
-    
-    console.log('Found category ID:', categoryId);
     
     // Formatar a data de validade mantendo o resto do produto inalterado
     const formattedProduct = {
@@ -400,6 +447,52 @@ export default function Estoque() {
 
     // Salvar o PDF
     doc.save(`relatorio-estoque-${new Date().toLocaleDateString('pt-BR')}.pdf`);
+  };
+
+  // Função para alternar a ordenação de uma coluna
+  const toggleSort = (key: string) => {
+    setColumnSorts(prev => {
+      const currentSort = prev[key];
+      const newSort = currentSort === null ? 'asc' : 
+                     currentSort === 'asc' ? 'desc' : null;
+      
+      // Resetar outras colunas
+      const resetSorts = Object.keys(prev).reduce((acc, k) => ({
+        ...acc,
+        [k]: null
+      }), {});
+
+      return {
+        ...resetSorts,
+        [key]: newSort
+      };
+    });
+  };
+
+  // Função para ordenar produtos
+  const sortProducts = (products: any[]) => {
+    const activeSort = Object.entries(columnSorts).find(([_, value]) => value !== null);
+    if (!activeSort) return products;
+
+    const [key, direction] = activeSort;
+
+    return [...products].sort((a, b) => {
+      let valueA = a[key];
+      let valueB = b[key];
+
+      // Converter para números se necessário
+      if (key === 'preco_venda' || key === 'estoque') {
+        valueA = Number(valueA);
+        valueB = Number(valueB);
+      } else {
+        valueA = String(valueA || '').toLowerCase();
+        valueB = String(valueB || '').toLowerCase();
+      }
+
+      if (valueA < valueB) return direction === 'asc' ? -1 : 1;
+      if (valueA > valueB) return direction === 'asc' ? 1 : -1;
+      return 0;
+    });
   };
 
   if (loading) {
@@ -629,234 +722,289 @@ export default function Estoque() {
           </div>
         </div>
 
-        <div className="grid grid-cols-[1fr_300px] gap-4">
-          <Card className="p-4">
-            <div className="flex gap-2 mb-4">
-              <Input
-                placeholder="Buscar por nome, código ou categoria..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1"
-              />
-            </div>
-
-            <ScrollArea className="h-[600px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Produto</TableHead>
-                    <TableHead>Categoria</TableHead>
-                    <TableHead>Preço</TableHead>
-                    <TableHead>Custo</TableHead>
-                    <TableHead>Estoque</TableHead>
-                    <TableHead>Estoque Mín.</TableHead>
-                    <TableHead>Validade</TableHead>
-                    <TableHead>Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredProducts.map((product) => (
-                    <TableRow
-                      key={product.id}
-                      className={
-                        product.estoque <= (product.estoque_minimo || 0) ? 'bg-red-50' :
-                          (product.data_validade && new Date(product.data_validade) < new Date()) ? 'bg-yellow-50' : ''
-                      }
-                    >
-                      <TableCell>{product.codigo}</TableCell>
-                      <TableCell className="font-medium">{product.nome}</TableCell>
-                      <TableCell>{product.categoria_nome || '-'}</TableCell>
-                      <TableCell>R$ {product.preco_venda.toFixed(2)}</TableCell>
-                      <TableCell>R$ {product.preco_custo?.toFixed(2) || '0.00'}</TableCell>
-                      <TableCell className={product.estoque <= (product.estoque_minimo || 0) ? 'text-red-600 font-bold' : ''}>
-                        {product.estoque}
-                      </TableCell>
-                      <TableCell>{product.estoque_minimo}</TableCell>
-                      <TableCell className={
-                        product.data_validade && new Date(product.data_validade) < new Date()
-                          ? 'text-yellow-600 font-bold'
-                          : ''
-                      }>
-                        {product.data_validade
-                          ? new Date(product.data_validade).toLocaleDateString('pt-BR')
-                          : '-'
-                        }
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(product)}
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-                            </svg>
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => setDeleteProductId(product.id)}
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M3 6h18" />
-                              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                            </svg>
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          </Card>
-
-          <div className="space-y-4">
+        {/* Conteúdo Principal */}
+        <div className="space-y-4">
+          {/* Estatísticas */}
+          <div className="grid grid-cols-6 gap-4">
+            {/* Total de Produtos */}
             <Card className="p-4">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">Categorias</h2>
-                <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="sm">Nova Categoria</Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Adicionar Categoria</DialogTitle>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div>
-                        <Label htmlFor="categoryName">Nome da Categoria</Label>
-                        <Input
-                          id="categoryName"
-                          value={newCategory.nome || ''}
-                          onChange={(e) => setNewCategory({ ...newCategory, nome: e.target.value })}
-                          placeholder="Nome da categoria"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="categoryDescription">Descrição</Label>
-                        <Input
-                          id="categoryDescription"
-                          value={newCategory.descricao || ''}
-                          onChange={(e) => setNewCategory({ ...newCategory, descricao: e.target.value })}
-                          placeholder="Descrição da categoria"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => setIsAddCategoryOpen(false)}>
-                        Cancelar
-                      </Button>
-                      <Button onClick={handleAddCategory}>
-                        Salvar Categoria
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
-
-              <ScrollArea className="h-[300px]">
-                <div className="space-y-2">
-                  {categories.map((category) => (
-                    <Card key={category.id} className="p-3">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="font-medium">{category.nome}</div>
-                          {category.descricao && (
-                            <div className="text-sm text-gray-500">{category.descricao}</div>
-                          )}
-                          <div className="text-sm text-blue-600 font-medium">
-                            {category.total_produtos || 0} produtos
-                          </div>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => setDeleteCategoryId(category.id)}
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M3 6h18" />
-                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                          </svg>
-                        </Button>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              </ScrollArea>
+              <div className="text-sm text-gray-500">Total de Produtos</div>
+              <div className="text-2xl font-bold">{products.length}</div>
             </Card>
 
+            {/* Estoque Baixo */}
+            <Card 
+              className={cn(
+                "p-4 cursor-pointer transition-colors",
+                showLowStock ? "bg-yellow-50" : "hover:bg-gray-50"
+              )}
+              onClick={() => {
+                setShowLowStock(!showLowStock);
+                setShowOutOfStock(false);
+                setShowExpired(false);
+                setShowNearExpiry(false);
+                setSearchTerm('');
+              }}
+            >
+              <div className="text-sm text-gray-500">Estoque Baixo</div>
+              <div className="text-2xl font-bold text-yellow-600">
+                {products.filter(p => p.estoque > 0 && p.estoque <= (p.estoque_minimo || 0)).length}
+              </div>
+            </Card>
+
+            {/* Sem Estoque */}
+            <Card 
+              className={cn(
+                "p-4 cursor-pointer transition-colors",
+                showOutOfStock ? "bg-red-50" : "hover:bg-gray-50"
+              )}
+              onClick={() => {
+                setShowOutOfStock(!showOutOfStock);
+                setShowLowStock(false);
+                setShowExpired(false);
+                setShowNearExpiry(false);
+                setSearchTerm('');
+              }}
+            >
+              <div className="text-sm text-gray-500">Sem Estoque</div>
+              <div className="text-2xl font-bold text-red-600">
+                {products.filter(p => p.estoque === 0).length}
+              </div>
+            </Card>
+
+            {/* Produtos Vencidos */}
+            <Card 
+              className={cn(
+                "p-4 cursor-pointer transition-colors",
+                showExpired ? "bg-purple-50" : "hover:bg-gray-50"
+              )}
+              onClick={() => {
+                setShowExpired(!showExpired);
+                setShowNearExpiry(false);
+                setShowLowStock(false);
+                setShowOutOfStock(false);
+                setSearchTerm('');
+              }}
+            >
+              <div className="text-sm text-gray-500">Vencidos</div>
+              <div className="text-2xl font-bold text-purple-600">
+                {products.filter(p => p.data_validade && new Date(p.data_validade) < new Date()).length}
+              </div>
+            </Card>
+
+            {/* A Vencer */}
+            <Card 
+              className={cn(
+                "p-4 cursor-pointer transition-colors",
+                showNearExpiry ? "bg-orange-50" : "hover:bg-gray-50"
+              )}
+              onClick={() => {
+                setShowNearExpiry(!showNearExpiry);
+                setShowExpired(false);
+                setShowLowStock(false);
+                setShowOutOfStock(false);
+                setSearchTerm('');
+              }}
+            >
+              <div className="text-sm text-gray-500">A Vencer (30d)</div>
+              <div className="text-2xl font-bold text-orange-600">
+                {products.filter(p => 
+                  p.data_validade && 
+                  new Date(p.data_validade) > new Date() &&
+                  new Date(p.data_validade) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                ).length}
+              </div>
+            </Card>
+
+            {/* Total em Mercadorias */}
             <Card className="p-4">
-              <h2 className="text-xl font-bold mb-4">Estatísticas</h2>
-              <div className="space-y-4">
-                <div>
-                  <div className="text-sm text-gray-500">Total de Produtos</div>
-                  <div className="text-2xl font-bold">{products.length}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500">Produtos com Estoque Baixo</div>
-                  <div className="text-2xl font-bold text-red-600">
-                    {products.filter(p => p.estoque <= (p.estoque_minimo || 0)).length}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500">Produtos Vencidos</div>
-                  <div className="text-2xl font-bold text-yellow-600">
-                    {products.filter(p => p.data_validade && new Date(p.data_validade) < new Date()).length}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500">Total em Mercadorias</div>
-                  <div className="text-2xl font-bold text-blue-600">
-                    R$ {totalMercadorias.toFixed(2)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500">Total em Vendas</div>
-                  <div className="text-2xl font-bold text-green-600">
-                    R$ {totalVendas.toFixed(2)}
-                  </div>
-                  <div className="mt-1 text-sm text-gray-500">
-                    Lucro Potencial: <span className="font-medium text-green-600">R$ {(totalVendas - totalMercadorias).toFixed(2)} ({((totalVendas - totalMercadorias) / totalMercadorias * 100).toFixed(1)}%)</span>
-                  </div>
-                </div>
+              <div className="text-sm text-gray-500">Total em Mercadorias</div>
+              <div className="text-2xl font-bold text-blue-600">
+                R$ {totalMercadorias.toFixed(2)}
               </div>
             </Card>
           </div>
+
+          {/* Tabela Principal */}
+          <Card className="flex flex-col h-[calc(100vh-16rem)]">
+            <div className="p-4">
+              <div className="flex gap-4 items-center">
+                <Input
+                  placeholder="Buscar por nome, código ou categoria..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="flex-1"
+                />
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setIsCategoriesModalOpen(true)}
+                >
+                  Categorias
+                </Button>
+                {(showLowStock || showOutOfStock || showExpired || showNearExpiry) && (
+                  <Button variant="outline" onClick={() => {
+                    setShowLowStock(false);
+                    setShowOutOfStock(false);
+                    setShowExpired(false);
+                    setShowNearExpiry(false);
+                    setSearchTerm('');
+                  }}>
+                    Limpar Filtros
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <ScrollArea className="flex-1">
+              <div className="p-4 pt-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-100"
+                        onClick={() => toggleSort('codigo')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Código
+                          {columnSorts.codigo === 'asc' && <span>↑</span>}
+                          {columnSorts.codigo === 'desc' && <span>↓</span>}
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-100"
+                        onClick={() => toggleSort('nome')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Nome
+                          {columnSorts.nome === 'asc' && <span>↑</span>}
+                          {columnSorts.nome === 'desc' && <span>↓</span>}
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-100"
+                        onClick={() => toggleSort('categoria_nome')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Categoria
+                          {columnSorts.categoria_nome === 'asc' && <span>↑</span>}
+                          {columnSorts.categoria_nome === 'desc' && <span>↓</span>}
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-100 text-right"
+                        onClick={() => toggleSort('estoque')}
+                      >
+                        <div className="flex items-center gap-1 justify-end">
+                          Estoque
+                          {columnSorts.estoque === 'asc' && <span>↑</span>}
+                          {columnSorts.estoque === 'desc' && <span>↓</span>}
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-100 text-right"
+                        onClick={() => toggleSort('preco_venda')}
+                      >
+                        <div className="flex items-center gap-1 justify-end">
+                          Preço
+                          {columnSorts.preco_venda === 'asc' && <span>↑</span>}
+                          {columnSorts.preco_venda === 'desc' && <span>↓</span>}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortProducts(getFilteredProducts()).map((product) => (
+                      <TableRow
+                        key={product.id}
+                        className={cn(
+                          'hover:bg-gray-50',
+                          product.estoque === 0 && 'bg-red-50 hover:bg-red-100',
+                          product.estoque > 0 && product.estoque <= (product.estoque_minimo || 0) && 'bg-yellow-50 hover:bg-yellow-100',
+                          product.data_validade && new Date(product.data_validade) < new Date() && 'bg-purple-50 hover:bg-purple-100',
+                          product.data_validade && 
+                          new Date(product.data_validade) > new Date() &&
+                          new Date(product.data_validade) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) && 'bg-orange-50 hover:bg-orange-100'
+                        )}
+                      >
+                        <TableCell>{product.codigo}</TableCell>
+                        <TableCell className="font-medium">{product.nome}</TableCell>
+                        <TableCell>{product.categoria_nome || '-'}</TableCell>
+                        <TableCell>
+                          <div className={cn(
+                            "flex items-center gap-2",
+                            product.estoque === 0 
+                              ? "text-red-600 font-bold"
+                              : product.estoque <= (product.estoque_minimo || 0)
+                                ? "text-yellow-600 font-bold"
+                                : ""
+                          )}>
+                            {product.estoque}
+                            {product.estoque === 0 && (
+                              <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full">
+                                Sem Estoque
+                              </span>
+                            )}
+                            {product.estoque > 0 && product.estoque <= (product.estoque_minimo || 0) && (
+                              <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">
+                                Estoque Baixo
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>R$ {product.preco_venda.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEdit(product)}
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                              </svg>
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => setDeleteProductId(product.id)}
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M3 6h18" />
+                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                              </svg>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </ScrollArea>
+          </Card>
         </div>
       </div>
 
@@ -895,6 +1043,60 @@ export default function Estoque() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Modal de Categorias */}
+      <Dialog open={isCategoriesModalOpen} onOpenChange={setIsCategoriesModalOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <div className="flex justify-between items-center">
+              <DialogTitle>Categorias</DialogTitle>
+              <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">Nova Categoria</Button>
+                </DialogTrigger>
+              </Dialog>
+            </div>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            {categories.map((category) => (
+              <Card 
+                key={category.id} 
+                className={cn(
+                  "p-3 cursor-pointer transition-colors",
+                  searchTerm && category.nome.toLowerCase().includes(searchTerm.toLowerCase()) && "bg-blue-50"
+                )}
+                onClick={() => {
+                  setSearchTerm(category.nome);
+                  setIsCategoriesModalOpen(false);
+                }}
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-medium">{category.nome}</div>
+                    {category.descricao && (
+                      <div className="text-sm text-gray-500">{category.descricao}</div>
+                    )}
+                    <div className="text-sm text-blue-600 font-medium">
+                      {category.total_produtos || 0} produtos
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteCategoryId(category.id);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 } 
