@@ -7,7 +7,72 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const { id } = req.query;
 
-      // Buscar compras do cliente com itens em uma única query
+      // Buscar detalhes do cliente incluindo contas a receber
+      const [cliente] = await pool.query(
+        `SELECT 
+          c.*, 
+          (
+            SELECT COALESCE(
+              SUM(
+                CASE 
+                  WHEN cr.status = 'pendente' THEN cr.valor
+                  WHEN cr.status = 'parcial' THEN (
+                    cr.valor - COALESCE(
+                      (SELECT SUM(pr.valor) FROM pagamentos_receber pr WHERE pr.conta_id = cr.id),
+                      0
+                    )
+                  )
+                  ELSE 0
+                END
+              ),
+              0
+            )
+            FROM contas_receber cr
+            WHERE cr.cliente_id = c.id
+          ) as valor_devido
+         FROM clientes c
+         WHERE c.id = ?`,
+        [id]
+      );
+
+      // Buscar contas a receber com seus pagamentos
+      const [contas] = await pool.query(
+        `SELECT 
+           cr.*,
+           v.valor_final,
+           v.data,
+           COALESCE(
+             (SELECT SUM(pr.valor)
+              FROM pagamentos_receber pr
+              WHERE pr.conta_id = cr.id),
+             0
+           ) as total_pago,
+           (
+             SELECT GROUP_CONCAT(
+               JSON_OBJECT(
+                 'id', pr.id,
+                 'valor', pr.valor,
+                 'forma_pagamento', pr.forma_pagamento,
+                 'data', pr.criado_em
+               )
+             )
+             FROM pagamentos_receber pr
+             WHERE pr.conta_id = cr.id
+           ) as pagamentos
+         FROM contas_receber cr
+         LEFT JOIN vendas v ON v.id = cr.venda_id
+         WHERE cr.cliente_id = ?
+         ORDER BY cr.data_vencimento ASC`,
+        [id]
+      );
+
+      // Formatar os pagamentos
+      const contasFormatadas = contas.map((conta: any) => ({
+        ...conta,
+        pagamentos: conta.pagamentos ? JSON.parse(`[${conta.pagamentos}]`) : []
+      }));
+
+      // Buscar compras do cliente
       const [compras] = await pool.query(`
         SELECT 
           v.*,
@@ -39,14 +104,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ORDER BY v.data DESC
       `, [id]);
 
-      // Buscar contas a receber
-      const [contas] = await pool.query(`
-        SELECT *
-        FROM contas_receber
-        WHERE cliente_id = ?
-        ORDER BY data_vencimento ASC
-      `, [id]);
-
       // Formatar os dados das compras
       const comprasFormatadas = compras.map((compra: any) => ({
         ...compra,
@@ -54,9 +111,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         itens: compra.itens ? JSON.parse(`[${compra.itens}]`) : []
       }));
 
+      // Retornar os dados completos
       res.status(200).json({
-        compras: comprasFormatadas,
-        contas
+        ...cliente[0],
+        contas: contasFormatadas,
+        compras: comprasFormatadas
       });
     } catch (error) {
       console.error('Erro ao buscar detalhes do cliente:', error);

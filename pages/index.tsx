@@ -181,6 +181,7 @@ function PDVComponent() {
   const [openCombobox, setOpenCombobox] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [currentSaleData, setCurrentSaleData] = useState<any>(null);
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
 
   // Funções auxiliares
   const addPaymentMethod = () => {
@@ -585,31 +586,68 @@ function PDVComponent() {
             body {
               font-family: monospace;
               margin: 0;
-              padding: 20px;
+              padding: 10px;
               width: 300px;
             }
             .header {
               text-align: center;
-              margin-bottom: 20px;
+              margin-bottom: 15px;
+              border-bottom: 1px dashed #000;
+              padding-bottom: 10px;
+            }
+            .header h2 {
+              margin: 0;
+              font-size: 16px;
+              text-transform: uppercase;
+            }
+            .header p {
+              margin: 5px 0 0;
+              font-size: 12px;
+            }
+            .items {
+              margin: 10px 0;
             }
             .item {
-              margin: 5px 0;
+              margin: 8px 0;
+            }
+            .item-name {
+              text-transform: uppercase;
+              font-weight: bold;
+              font-size: 12px;
+            }
+            .item-details {
+              display: flex;
+              justify-content: space-between;
+              font-size: 12px;
+              color: #444;
             }
             .divider {
               border-top: 1px dashed #000;
               margin: 10px 0;
             }
             .total {
+              font-size: 12px;
+            }
+            .total-final {
+              font-size: 14px;
               font-weight: bold;
+              margin-top: 5px;
+            }
+            .payments {
               margin: 10px 0;
+              font-size: 12px;
             }
             .payment {
-              margin: 5px 0;
+              display: flex;
+              justify-content: space-between;
+              margin: 3px 0;
             }
             .footer {
               text-align: center;
-              margin-top: 20px;
+              margin-top: 15px;
               font-size: 12px;
+              border-top: 1px dashed #000;
+              padding-top: 10px;
             }
           </style>
         </head>
@@ -622,8 +660,11 @@ function PDVComponent() {
           <div class="items">
             ${currentSaleData.items.map((item: any) => `
               <div class="item">
-                <div>${item.quantity}x ${item.name}</div>
-                <div>${item.quantity} UN x ${item.price.toFixed(2)} = R$ ${item.total.toFixed(2)}</div>
+                <div class="item-name">${item.name.toUpperCase()}</div>
+                <div class="item-details">
+                  <span>${item.quantity} UN x R$ ${item.price.toFixed(2)}</span>
+                  <span>R$ ${item.total.toFixed(2)}</span>
+                </div>
               </div>
             `).join('')}
           </div>
@@ -635,7 +676,7 @@ function PDVComponent() {
             ${currentSaleData.discount > 0 ? 
               `<div>Desconto: R$ ${currentSaleData.discount.toFixed(2)}</div>` : 
               ''}
-            <div>Total: R$ ${(currentSaleData.total - currentSaleData.discount).toFixed(2)}</div>
+            <div class="total-final">Total: R$ ${(currentSaleData.total - currentSaleData.discount).toFixed(2)}</div>
           </div>
 
           <div class="divider"></div>
@@ -643,12 +684,16 @@ function PDVComponent() {
           <div class="payments">
             ${currentSaleData.paymentMethods.map((payment: any) => `
               <div class="payment">
-                ${payment.method.toUpperCase()}: R$ ${payment.amount.toFixed(2)}
+                <span>${payment.method.toUpperCase()}</span>
+                <span>R$ ${payment.amount.toFixed(2)}</span>
               </div>
             `).join('')}
-            ${currentSaleData.change > 0 ? 
-              `<div class="payment">Troco: R$ ${currentSaleData.change.toFixed(2)}</div>` : 
-              ''}
+            ${currentSaleData.change > 0 ? `
+              <div class="payment">
+                <span>TROCO</span>
+                <span>R$ ${currentSaleData.change.toFixed(2)}</span>
+              </div>
+            ` : ''}
           </div>
 
           <div class="footer">
@@ -664,6 +709,18 @@ function PDVComponent() {
     printWindow.print();
     printWindow.close();
   }, [currentSaleData]);
+
+  // Adicionar o useEffect para escutar o Backspace
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Backspace' && printDialogOpen) {
+        setPrintDialogOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [printDialogOpen]);
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
@@ -1305,23 +1362,8 @@ function PDVComponent() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isPrintModalOpen} onOpenChange={(open) => {
-        // Só permite fechar o modal através dos botões
-        if (open === false && isPrintModalOpen) return;
-        setIsPrintModalOpen(open);
-      }}>
-        <DialogContent onKeyDown={(e) => {
-          // Previne o fechamento com ESC
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            return;
-          }
-          // Imprime quando pressionar Enter
-          if (e.key === 'Enter') {
-            handlePrint();
-            setIsPrintModalOpen(false);
-          }
-        }}>
+      <Dialog open={isPrintModalOpen}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Imprimir Cupom</DialogTitle>
           </DialogHeader>
@@ -1333,7 +1375,7 @@ function PDVComponent() {
               variant="outline" 
               onClick={() => setIsPrintModalOpen(false)}
             >
-              Não (Esc)
+              Não (Backspace)
             </Button>
             <Button 
               onClick={() => {

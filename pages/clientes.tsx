@@ -25,9 +25,17 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "react-hot-toast";
 import axios from "axios";
-import { Users, ArrowLeft, Search, Plus } from "lucide-react";
+import { Users, ArrowLeft, Search, Plus, DollarSign } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { DialogFooter } from "@/components/ui/dialog";
 
 interface Cliente {
   id: string;
@@ -60,7 +68,12 @@ function ClientesComponent() {
   const [selectedClient, setSelectedClient] = useState<Cliente | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [clientDetails, setClientDetails] = useState<any>(null);
-  const [generalPaymentDialog, setGeneralPaymentDialog] = useState({
+  const [generalPaymentDialog, setGeneralPaymentDialog] = useState<{
+    open: boolean;
+    valorTotal: number;
+    valorPagamento: string;
+    forma_pagamento: string;
+  }>({
     open: false,
     valorTotal: 0,
     valorPagamento: '',
@@ -70,9 +83,11 @@ function ClientesComponent() {
     open: false,
     contaId: '',
     valorTotal: 0,
-    valorPagamento: ''
+    valorPagamento: '',
+    forma_pagamento: 'dinheiro'
   });
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [totalPendente, setTotalPendente] = useState(0);
 
   useEffect(() => {
     if (!hasPermission('vendas')) {
@@ -138,12 +153,21 @@ function ClientesComponent() {
   const handlePayment = async (contaId: string, valor: number) => {
     try {
       await axios.post(`/api/clientes/contas-receber/${contaId}/pagar`, {
-        valor
+        valor: Number(paymentDialog.valorPagamento),
+        forma_pagamento: paymentDialog.forma_pagamento
       });
+
+      // Fechar o modal primeiro
+      setPaymentDialog(prev => ({ ...prev, open: false }));
+      
+      // Atualizar os dados
+      await loadClientDetails(selectedClient!.id);
+      await carregarClientes();
+      
+      // Mostrar mensagem de sucesso por último
       toast.success('Pagamento registrado com sucesso');
-      loadClientDetails(selectedClient!.id);
-      carregarClientes();
     } catch (error) {
+      console.error('Erro ao registrar pagamento:', error);
       toast.error('Erro ao registrar pagamento');
     }
   };
@@ -166,6 +190,55 @@ function ClientesComponent() {
       'cancelada': 'Cancelada'
     };
     return statusMap[status] || status;
+  };
+
+  const calcularTotalPendente = (contas: any[]) => {
+    if (!contas) return 0;
+    
+    return contas
+      .filter(conta => conta.status === 'pendente' || conta.status === 'parcial')
+      .reduce((acc, conta) => {
+        const valorPendente = Number(conta.valor) - Number(conta.total_pago || 0);
+        return acc + valorPendente;
+      }, 0);
+  };
+
+  useEffect(() => {
+    if (clientDetails?.contas) {
+      const total = calcularTotalPendente(clientDetails.contas);
+      setTotalPendente(total);
+    }
+  }, [clientDetails]);
+
+  const handleOpenGeneralPayment = () => {
+    setGeneralPaymentDialog({
+      open: true,
+      valorTotal: totalPendente,
+      valorPagamento: totalPendente.toString(),
+      forma_pagamento: 'dinheiro'
+    });
+  };
+
+  const handleGeneralPayment = async () => {
+    try {
+      await axios.post(`/api/clientes/${clientDetails.id}/pagar-geral`, {
+        valor: Number(generalPaymentDialog.valorPagamento),
+        forma_pagamento: generalPaymentDialog.forma_pagamento
+      });
+      
+      // Fechar o modal primeiro
+      setGeneralPaymentDialog(prev => ({ ...prev, open: false }));
+      
+      // Atualizar os dados
+      await loadClientDetails(selectedClient!.id);
+      await carregarClientes();
+      
+      // Mostrar mensagem de sucesso por último
+      toast.success('Pagamento registrado com sucesso');
+    } catch (error) {
+      console.error('Erro ao registrar pagamento:', error);
+      toast.error('Erro ao registrar pagamento');
+    }
   };
 
   if (!user) return null;
@@ -395,12 +468,12 @@ function ClientesComponent() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {clientDetails.compras.map((compra: any) => (
+                          {clientDetails?.compras?.map((compra: any) => (
                             <TableRow key={compra.id} className="text-xs">
                               <TableCell>{new Date(compra.data).toLocaleString()}</TableCell>
                               <TableCell>R$ {Number(compra.valor_final).toFixed(2)}</TableCell>
                               <TableCell className="max-w-[200px]">
-                                {compra.pagamentos.map((p: any) => (
+                                {compra.pagamentos?.map((p: any) => (
                                   <div key={p.forma_pagamento} className="whitespace-nowrap">
                                     {formatarFormaPagamento(p.forma_pagamento)}: R$ {Number(p.valor).toFixed(2)}
                                   </div>
@@ -408,7 +481,7 @@ function ClientesComponent() {
                               </TableCell>
                               <TableCell className="max-w-[250px]">
                                 <div className="space-y-1">
-                                  {compra.itens.map((item: any, index: number) => (
+                                  {compra.itens?.map((item: any, index: number) => (
                                     <div key={index} className="flex justify-between text-xs">
                                       <span className="truncate">{item.quantidade}x {item.produto_nome}</span>
                                       <span className="text-gray-600 ml-2 shrink-0">
@@ -428,6 +501,24 @@ function ClientesComponent() {
 
                 <div>
                   <h3 className="text-sm font-medium mb-2">Contas a Receber</h3>
+                  <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <p className="text-sm text-gray-500">
+                        Total Devido: R$ {Number(clientDetails?.valor_devido || 0).toFixed(2)}
+                        <span className="text-xs text-gray-400 ml-2">
+                          (Calculado: R$ {totalPendente.toFixed(2)})
+                        </span>
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={handleOpenGeneralPayment}
+                      className="flex items-center gap-2"
+                    >
+                      <DollarSign className="h-4 w-4" />
+                      Pagar Todas
+                    </Button>
+                  </div>
                   <Tabs defaultValue="pendentes" className="w-full">
                     <TabsList className="mb-2">
                       <TabsTrigger value="pendentes">Pendentes</TabsTrigger>
@@ -435,51 +526,6 @@ function ClientesComponent() {
                     </TabsList>
                     
                     <TabsContent value="pendentes">
-                      <div className="flex justify-between items-center mb-4">
-                        <div className="space-y-1">
-                          <div className="text-sm font-medium">
-                            Total Pendente: <span className="text-red-600">R$ {clientDetails.contas
-                              .filter(conta => conta.status === 'pendente')
-                              .reduce((acc, conta) => acc + Number(conta.valor), 0)
-                              .toFixed(2)}</span>
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {clientDetails.contas.filter(conta => conta.status === 'pendente').length} contas em aberto
-                          </div>
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            const totalPendente = clientDetails.contas
-                              .filter(conta => conta.status === 'pendente')
-                              .reduce((acc, conta) => acc + Number(conta.valor), 0);
-                            
-                            setGeneralPaymentDialog({
-                              open: true,
-                              valorTotal: totalPendente,
-                              valorPagamento: '',
-                              forma_pagamento: 'dinheiro'
-                            });
-                          }}
-                          className="flex items-center gap-2"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <rect width="20" height="14" x="2" y="5" rx="2" />
-                            <line x1="2" x2="22" y1="10" y2="10" />
-                          </svg>
-                          Pagamento Geral
-                        </Button>
-                      </div>
                       <div className="border rounded-lg overflow-hidden">
                         <div className="max-h-[300px] overflow-auto">
                           <Table>
@@ -550,19 +596,18 @@ function ClientesComponent() {
                                         <TableCell className="text-right">
                                           <Button
                                             size="sm"
-                                            variant="outline"
-                                            className="h-7 text-xs"
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               setPaymentDialog({
                                                 open: true,
                                                 contaId: conta.id,
                                                 valorTotal: Number(conta.valor),
-                                                valorPagamento: conta.valor
+                                                valorPagamento: conta.valor.toString(),
+                                                forma_pagamento: 'dinheiro'
                                               });
                                             }}
                                           >
-                                            Registrar Pagamento
+                                            Pagar
                                           </Button>
                                         </TableCell>
                                       </TableRow>
@@ -661,6 +706,138 @@ function ClientesComponent() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog 
+        open={generalPaymentDialog.open} 
+        onOpenChange={(open) => setGeneralPaymentDialog(prev => ({ ...prev, open }))}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar Pagamento Geral</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div>
+              <Label>Valor Total Pendente</Label>
+              <div className="text-2xl font-bold">
+                R$ {generalPaymentDialog.valorTotal.toFixed(2)}
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="valorPagamento">Valor do Pagamento</Label>
+              <Input
+                id="valorPagamento"
+                type="number"
+                step="0.01"
+                value={generalPaymentDialog.valorPagamento}
+                onChange={(e) => setGeneralPaymentDialog(prev => ({
+                  ...prev,
+                  valorPagamento: e.target.value
+                }))}
+              />
+            </div>
+            <div>
+              <Label htmlFor="formaPagamento">Forma de Pagamento</Label>
+              <Select
+                value={generalPaymentDialog.forma_pagamento}
+                onValueChange={(value) => setGeneralPaymentDialog(prev => ({
+                  ...prev,
+                  forma_pagamento: value
+                }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                  <SelectItem value="cartao_debito">Cartão de Débito</SelectItem>
+                  <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
+                  <SelectItem value="pix">PIX</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setGeneralPaymentDialog(prev => ({ ...prev, open: false }))}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleGeneralPayment}
+              disabled={!generalPaymentDialog.valorPagamento || Number(generalPaymentDialog.valorPagamento) <= 0}
+            >
+              Confirmar Pagamento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog 
+        open={paymentDialog.open} 
+        onOpenChange={(open) => setPaymentDialog(prev => ({ ...prev, open }))}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar Pagamento</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div>
+              <Label>Valor Total da Conta</Label>
+              <div className="text-2xl font-bold">
+                R$ {paymentDialog.valorTotal.toFixed(2)}
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="valorPagamento">Valor do Pagamento</Label>
+              <Input
+                id="valorPagamento"
+                type="number"
+                step="0.01"
+                value={paymentDialog.valorPagamento}
+                onChange={(e) => setPaymentDialog(prev => ({
+                  ...prev,
+                  valorPagamento: e.target.value
+                }))}
+              />
+            </div>
+            <div>
+              <Label htmlFor="formaPagamento">Forma de Pagamento</Label>
+              <Select
+                value={paymentDialog.forma_pagamento}
+                onValueChange={(value) => setPaymentDialog(prev => ({
+                  ...prev,
+                  forma_pagamento: value
+                }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                  <SelectItem value="cartao_debito">Cartão de Débito</SelectItem>
+                  <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
+                  <SelectItem value="pix">PIX</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPaymentDialog(prev => ({ ...prev, open: false }))}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => handlePayment(paymentDialog.contaId, Number(paymentDialog.valorPagamento))}
+              disabled={!paymentDialog.valorPagamento || Number(paymentDialog.valorPagamento) <= 0}
+            >
+              Confirmar Pagamento
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
