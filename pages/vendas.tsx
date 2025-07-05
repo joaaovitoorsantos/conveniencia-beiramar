@@ -60,6 +60,7 @@ function VendasComponent() {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   useEffect(() => {
+    if (!user) return;
     if (!hasPermission('vendas')) {
       toast.error('Você não tem permissão para acessar esta página');
       router.replace('/');
@@ -67,7 +68,7 @@ function VendasComponent() {
     }
 
     carregarVendas();
-  }, [periodoSelecionado]);
+  }, [periodoSelecionado, user]);
 
   const carregarVendas = async () => {
     try {

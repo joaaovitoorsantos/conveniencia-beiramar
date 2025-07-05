@@ -90,6 +90,7 @@ function ClientesComponent() {
   const [totalPendente, setTotalPendente] = useState(0);
 
   useEffect(() => {
+    if (!user) return;
     if (!hasPermission('vendas')) {
       toast.error('Você não tem permissão para acessar esta página');
       router.replace('/');
@@ -97,7 +98,7 @@ function ClientesComponent() {
     }
 
     carregarClientes();
-  }, []);
+  }, [user]);
 
   const carregarClientes = async () => {
     try {

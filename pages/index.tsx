@@ -321,8 +321,31 @@ function PDVComponent() {
     fetchUltimasVendas();
   }, []);
 
-  // Se não houver usuário, não renderiza nada
-  if (!user) return null;
+  // Adicione o useEffect para carregar os clientes
+  useEffect(() => {
+    const loadClientes = async () => {
+      try {
+        const response = await axios.get('/api/clientes');
+        setClientes(response.data);
+      } catch (error) {
+        console.error('Erro ao carregar clientes:', error);
+      }
+    };
+
+    loadClientes();
+  }, []);
+
+  // Adicionar o useEffect para escutar o Backspace
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Backspace' && printDialogOpen) {
+        setPrintDialogOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [printDialogOpen]);
 
   // Resto das funções e retorno do JSX
   // Função para buscar todos os produtos
@@ -451,20 +474,6 @@ function PDVComponent() {
         : item
     ));
   };
-
-  // Adicione o useEffect para carregar os clientes
-  useEffect(() => {
-    const loadClientes = async () => {
-      try {
-        const response = await axios.get('/api/clientes');
-        setClientes(response.data);
-      } catch (error) {
-        console.error('Erro ao carregar clientes:', error);
-      }
-    };
-
-    loadClientes();
-  }, []);
 
   // Nova função para confirmar a venda dentro do modal
   const confirmarVenda = async () => {
@@ -710,17 +719,10 @@ function PDVComponent() {
     printWindow.close();
   }, [currentSaleData]);
 
-  // Adicionar o useEffect para escutar o Backspace
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Backspace' && printDialogOpen) {
-        setPrintDialogOpen(false);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [printDialogOpen]);
+    // Se não houver usuário, não renderiza nada
+    if (!user || loading) {
+      return null;
+    }
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
@@ -747,7 +749,7 @@ function PDVComponent() {
             </Button>
           )}
 
-          {hasPermission('financeiro') && (
+          {hasPermission('vendas') && (
             <Button 
               variant="outline" 
               onClick={() => router.push('/caixas')}

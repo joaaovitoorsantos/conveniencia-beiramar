@@ -2,6 +2,9 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import pool from '@/lib/db';
 import { RowDataPacket } from 'mysql2';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'sua-chave-secreta-super-segura';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -48,7 +51,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Remover senha do objeto antes de enviar
-    const { senha: _, ...userWithoutPassword } = user;
+    const { senha: _, ...userWithoutPassword } = user as any;
 
     // Formatar permissões como array
     const userData = {
@@ -56,9 +59,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       permissoes: user.permissoes ? user.permissoes.split(',') : []
     };
 
+    // Gerar token JWT
+    const token = jwt.sign({
+      id: userData.id,
+      usuario: userData.usuario,
+      email: userData.email,
+      perfilId: userData.perfil_id,
+      permissoes: userData.permissoes
+    }, JWT_SECRET, { expiresIn: '12h' });
+
+    // Configurar o token no cookie
+    const cookieValue = `auth_token=${token}; HttpOnly; Path=/; Max-Age=86400`;
+    console.log('Definindo cookie:', cookieValue);
+    res.setHeader('Set-Cookie', cookieValue);
+
     res.status(200).json({
-      user: userData,
-      message: 'Login realizado com sucesso'
+      message: 'Login realizado com sucesso',
+      token: token,
+      user: {
+        id: userData.id,
+        usuario: userData.usuario,
+        email: userData.email,
+        perfilId: userData.perfil_id,
+        permissoes: userData.permissoes
+      }
     });
   } catch (error) {
     console.error('Erro ao realizar login:', error);

@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 export default function Login() {
   const router = useRouter();
-  const { user, login } = useAuth();
+  const { user, login, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [credentials, setCredentials] = useState({
     usuario: "",
@@ -30,9 +30,8 @@ export default function Login() {
       setLoading(true);
       const response = await axios.post('/api/auth/login', credentials);
       
-      login(response.data.user);
+      login(response.data.user, response.data.token);
       toast.success('Login realizado com sucesso');
-      router.replace('/');
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Erro ao realizar login');
     } finally {
@@ -40,7 +39,7 @@ export default function Login() {
     }
   };
 
-  if (user) return null;
+  if (user || authLoading) return null;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
