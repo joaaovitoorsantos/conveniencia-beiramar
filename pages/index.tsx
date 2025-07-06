@@ -760,6 +760,17 @@ function PDVComponent() {
             </Button>
           )}
 
+          {hasPermission('financeiro') && (
+            <Button 
+              variant="outline" 
+              onClick={() => router.push('/financeiro')}
+              className="flex items-center gap-2"
+            >
+              <DollarSign className="h-4 w-4" />
+              Financeiro
+            </Button>
+          )}
+
           {hasPermission('vendas') && (
             <Button 
               variant="outline" 

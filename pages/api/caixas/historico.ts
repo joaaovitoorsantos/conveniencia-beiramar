@@ -10,25 +10,34 @@ moment.tz.setDefault('America/Sao_Paulo');
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
     try {
-      const { periodo } = req.query;
+      const { periodo, data } = req.query;
       
       let dateFilter = '';
-      switch (periodo) {
-        case 'hoje':
-          dateFilter = `c.data_fechamento IS NULL`;
-          break;
-        case 'semana':
-          dateFilter = 'data_abertura >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)';
-          break;
-        case 'mes':
-          dateFilter = 'data_abertura >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)';
-          break;
-        case 'ano':
-          dateFilter = 'data_abertura >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)';
-          break;
-        default:
-          dateFilter = 'DATE(data_abertura) = CURDATE()';
+      
+      // Se uma data específica foi fornecida, usar ela
+      if (data && typeof data === 'string') {
+        dateFilter = `DATE(c.data_abertura) = '${data}'`;
+      } else {
+        // Caso contrário, usar o período
+        switch (periodo) {
+          case 'hoje':
+            dateFilter = `c.data_fechamento IS NULL`;
+            break;
+          case 'semana':
+            dateFilter = 'data_abertura >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)';
+            break;
+          case 'mes':
+            dateFilter = 'data_abertura >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)';
+            break;
+          case 'ano':
+            dateFilter = 'data_abertura >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)';
+            break;
+          default:
+            dateFilter = 'DATE(data_abertura) = CURDATE()';
+        }
       }
+
+      console.log('Filtro de data aplicado:', dateFilter);
 
       // Buscar caixas
       const [caixas] = await pool.query<RowDataPacket[]>(`
