@@ -764,7 +764,11 @@ function ClientesComponent() {
                                 <TableRow key={conta.id} className="text-xs">
                                   <TableCell>{new Date(conta.data_vencimento).toLocaleDateString()}</TableCell>
                                   <TableCell>{new Date(conta.data_pagamento).toLocaleDateString()}</TableCell>
-                                  <TableCell>R$ {Number(conta.valor).toFixed(2)}</TableCell>
+                                  <TableCell>
+                                    R$ {Array.isArray(conta.pagamentos) && conta.pagamentos.length > 0
+                                      ? conta.pagamentos.reduce((acc: number, p: any) => acc + Number(p.valor), 0).toFixed(2)
+                                      : Number(conta.valor).toFixed(2)}
+                                  </TableCell>
                                   <TableCell>
                                     {Array.isArray(conta.pagamentos) && conta.pagamentos.length > 0
                                       ? conta.pagamentos.map((p: any, idx: number) => (

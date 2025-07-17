@@ -30,12 +30,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const usuario_id = usuarios[0].id;
 
-    // Buscar todas as contas pendentes ordenadas por data de vencimento
+    // Buscar todas as contas pendentes e parciais ordenadas por data de vencimento
     const [contas] = await connection.query(
-      `SELECT cr.id, cr.valor, cr.status, cr.data_vencimento, cr.cliente_id
+      `SELECT cr.id, cr.valor, cr.status, cr.data_vencimento, cr.cliente_id,
+              COALESCE((SELECT SUM(pr.valor) FROM pagamentos_receber pr WHERE pr.conta_id = cr.id), 0) as total_pago
        FROM contas_receber cr
        WHERE cr.cliente_id = ? 
-       AND cr.status = 'pendente'
+         AND (cr.status = 'pendente' OR cr.status = 'parcial')
        ORDER BY cr.data_vencimento ASC`,
       [id]
     );
@@ -60,12 +61,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Para cada conta, pagar total ou parcial até acabar o valor
     for (const conta of contas) {
+      const saldoDevedor = Number(conta.valor) - Number(conta.total_pago || 0);
+      if (saldoDevedor <= 0) continue;
       if (valorRestante <= 0) break;
 
-      const valorPagar = Math.min(Number(conta.valor), valorRestante);
-      
+      const valorPagar = Math.min(saldoDevedor, valorRestante);
+      if (valorPagar <= 0) continue;
       // Registrar o pagamento
-      const [result] = await connection.query(
+      await connection.query(
         `INSERT INTO pagamentos_receber 
          (id, conta_id, valor, forma_pagamento, recebido_por) 
          VALUES (UUID(), ?, ?, ?, ?)`,
@@ -77,8 +80,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         valor: valorPagar
       });
 
-      // Atualizar apenas o status da conta
-      if (valorPagar >= Number(conta.valor)) {
+      // Atualizar o status da conta
+      if (valorPagar >= saldoDevedor) {
         await connection.query(
           `UPDATE contas_receber 
            SET status = 'pago', 
