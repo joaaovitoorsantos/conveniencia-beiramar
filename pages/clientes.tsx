@@ -25,7 +25,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "react-hot-toast";
 import axios from "axios";
-import { Users, ArrowLeft, Search, Plus, DollarSign } from "lucide-react";
+import { Users, ArrowLeft, Search, Plus, DollarSign, Eye, Pencil } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import {
@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DialogFooter } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Cliente {
   id: string;
@@ -88,6 +89,16 @@ function ClientesComponent() {
   });
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [totalPendente, setTotalPendente] = useState(0);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    id: '',
+    nome: '',
+    cpf: '',
+    telefone: '',
+    email: '',
+    endereco: '',
+    limite_credito: '0'
+  });
 
   useEffect(() => {
     if (!user) return;
@@ -296,7 +307,7 @@ function ClientesComponent() {
                       <Label htmlFor="nome">Nome</Label>
                       <Input
                         id="nome"
-                        value={formData.nome}
+                        value={formData.nome.toUpperCase()}
                         onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                         required
                       />
@@ -358,10 +369,6 @@ function ClientesComponent() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nome</TableHead>
-                    <TableHead>CPF</TableHead>
-                    <TableHead>Telefone</TableHead>
-                    <TableHead>Total Compras</TableHead>
-                    <TableHead>Última Compra</TableHead>
                     <TableHead>Limite Crédito</TableHead>
                     <TableHead>Valor Devido</TableHead>
                     <TableHead>Ações</TableHead>
@@ -386,36 +393,57 @@ function ClientesComponent() {
                   ) : (
                     filteredClientes.map((cliente) => (
                       <TableRow key={cliente.id}>
-                        <TableCell>{cliente.nome}</TableCell>
-                        <TableCell>{cliente.cpf || '-'}</TableCell>
-                        <TableCell>{cliente.telefone || '-'}</TableCell>
-                        <TableCell>{cliente.total_compras}</TableCell>
-                        <TableCell>
-                          {cliente.ultima_compra 
-                            ? new Date(cliente.ultima_compra).toLocaleDateString() 
-                            : '-'}
-                        </TableCell>
+                        <TableCell>{cliente.nome.toUpperCase()}</TableCell>
                         <TableCell>R$ {Number(cliente.limite_credito).toFixed(2)}</TableCell>
                         <TableCell className={cliente.valor_devido > 0 ? "text-red-600" : ""}>
                           R$ {Number(cliente.valor_devido).toFixed(2)}
                         </TableCell>
                         <TableCell>
-                          <div className="flex gap-2">
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => {
-                                setSelectedClient(cliente);
-                                setIsDetailsOpen(true);
-                                loadClientDetails(cliente.id);
-                              }}
-                            >
-                              Detalhes
-                            </Button>
-                            <Button variant="ghost" size="sm">
-                              Editar
-                            </Button>
-                          </div>
+                          <TooltipProvider>
+                            <div className="flex gap-2">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon"
+                                    className="hover:bg-blue-100 hover:text-blue-700 transition-colors"
+                                    onClick={() => {
+                                      setSelectedClient(cliente);
+                                      setIsDetailsOpen(true);
+                                      loadClientDetails(cliente.id);
+                                    }}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Detalhes</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="hover:bg-yellow-100 hover:text-yellow-700 transition-colors"
+                                    onClick={() => {
+                                      setEditFormData({
+                                        id: cliente.id,
+                                        nome: cliente.nome || '',
+                                        cpf: cliente.cpf || '',
+                                        telefone: cliente.telefone || '',
+                                        email: cliente.email || '',
+                                        endereco: cliente.endereco || '',
+                                        limite_credito: cliente.limite_credito?.toString() || '0'
+                                      });
+                                      setIsEditDialogOpen(true);
+                                    }}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Editar</TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TooltipProvider>
                         </TableCell>
                       </TableRow>
                     ))
@@ -436,12 +464,64 @@ function ClientesComponent() {
           {selectedClient && clientDetails ? (
             <ScrollArea className="flex-1 p-6">
               <div className="space-y-6">
+                {/* RESUMO INFORMATIVO */}
+                {(() => {
+                  // Cálculos dos totais
+                  let totalPago = 0;
+                  let totalParcialPago = 0;
+                  let totalParcialDevido = 0;
+                  let totalPendente = 0;
+                  let totalCompras = 0;
+                  clientDetails.contas.forEach((conta: any) => {
+                    totalCompras += Number(conta.valor);
+                    if (conta.status === 'pago') {
+                      totalPago += Number(conta.valor);
+                    } else if (conta.status === 'parcial') {
+                      totalParcialPago += Number(conta.total_pago);
+                      totalParcialDevido += Number(conta.valor) - Number(conta.total_pago);
+                    } else if (conta.status === 'pendente') {
+                      totalPendente += Number(conta.valor);
+                    }
+                  });
+                  const totalJaPago = totalPago + totalParcialPago;
+                  const totalEmAberto = totalParcialDevido + totalPendente;
+                  return (
+                    <div className="mb-4 p-4 rounded-lg bg-blue-50 border border-blue-200 text-blue-900">
+                      <div className="flex flex-wrap gap-6 items-center justify-between">
+                        <div>
+                          <div className="font-semibold text-lg">Resumo Financeiro</div>
+                          <div className="text-xs text-blue-700">Valores referentes a todas as compras e pagamentos deste cliente.</div>
+                        </div>
+                        <div className="flex flex-wrap gap-6 mt-2">
+                          <div>
+                            <div className="text-xs text-blue-700">Total já pago</div>
+                            <div className="font-bold">R$ {totalJaPago.toFixed(2)}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-blue-700">Total em aberto</div>
+                            <div className="font-bold">R$ {totalEmAberto.toFixed(2)}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-blue-700">Contas parciais</div>
+                            <div className="text-xs">Pago: <span className="font-semibold">R$ {totalParcialPago.toFixed(2)}</span></div>
+                            <div className="text-xs">Devido: <span className="font-semibold">R$ {totalParcialDevido.toFixed(2)}</span></div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-blue-700">Total de compras</div>
+                            <div className="font-bold">R$ {totalCompras.toFixed(2)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+                {/* FIM RESUMO */}
                 <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
                   <div className="space-y-2 text-sm">
-                    <p><span className="font-medium">Nome:</span> {selectedClient.nome}</p>
+                    <p><span className="font-medium">Nome:</span> {selectedClient.nome.toUpperCase()}</p>
                     <p><span className="font-medium">CPF:</span> {selectedClient.cpf || '-'}</p>
                     <p><span className="font-medium">Contato:</span> {selectedClient.telefone || '-'} / {selectedClient.email || '-'}</p>
-                    <p><span className="font-medium">Endereço:</span> {selectedClient.endereco || '-'}</p>
+                    <p><span className="font-medium">Endereço:</span> {selectedClient.endereco.toUpperCase() || '-'}</p>
                   </div>
                   <div className="space-y-2 text-sm">
                     <p><span className="font-medium">Total Compras:</span> {selectedClient.total_compras}</p>
@@ -673,6 +753,7 @@ function ClientesComponent() {
                               <TableHead className="text-xs">Vencimento</TableHead>
                               <TableHead className="text-xs">Pagamento</TableHead>
                               <TableHead className="text-xs">Valor</TableHead>
+                              <TableHead className="text-xs">Forma de Pagamento</TableHead>
                               <TableHead className="text-xs">Status</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -684,6 +765,15 @@ function ClientesComponent() {
                                   <TableCell>{new Date(conta.data_vencimento).toLocaleDateString()}</TableCell>
                                   <TableCell>{new Date(conta.data_pagamento).toLocaleDateString()}</TableCell>
                                   <TableCell>R$ {Number(conta.valor).toFixed(2)}</TableCell>
+                                  <TableCell>
+                                    {Array.isArray(conta.pagamentos) && conta.pagamentos.length > 0
+                                      ? conta.pagamentos.map((p: any, idx: number) => (
+                                          <div key={idx}>
+                                            {formatarFormaPagamento(p.forma_pagamento)}: R$ {Number(p.valor).toFixed(2)}
+                                          </div>
+                                        ))
+                                      : '-'}
+                                  </TableCell>
                                   <TableCell>
                                     <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-green-100 text-green-800">
                                       Pago
@@ -707,6 +797,96 @@ function ClientesComponent() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog 
+        open={isEditDialogOpen} 
+        onOpenChange={setIsEditDialogOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Cliente</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                await axios.put(`/api/clientes/${editFormData.id}`, {
+                  ...editFormData,
+                  limite_credito: Number(editFormData.limite_credito)
+                });
+                toast.success('Cliente atualizado com sucesso');
+                setIsEditDialogOpen(false);
+                carregarClientes();
+              } catch (error: any) {
+                toast.error(error.response?.data?.error || 'Erro ao atualizar cliente');
+              }
+            }}
+            className="space-y-4"
+          >
+            <div>
+              <Label htmlFor="edit-nome">Nome</Label>
+              <Input
+                id="edit-nome"
+                value={editFormData.nome}
+                onChange={(e) => setEditFormData({ ...editFormData, nome: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-cpf">CPF</Label>
+              <Input
+                id="edit-cpf"
+                value={editFormData.cpf}
+                onChange={(e) => setEditFormData({ ...editFormData, cpf: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-telefone">Telefone</Label>
+              <Input
+                id="edit-telefone"
+                value={editFormData.telefone}
+                onChange={(e) => setEditFormData({ ...editFormData, telefone: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-email">E-mail</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={editFormData.email}
+                onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-endereco">Endereço</Label>
+              <Input
+                id="edit-endereco"
+                value={editFormData.endereco}
+                onChange={(e) => setEditFormData({ ...editFormData, endereco: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-limite_credito">Limite de Crédito</Label>
+              <Input
+                id="edit-limite_credito"
+                type="number"
+                min="0"
+                step="0.01"
+                value={editFormData.limite_credito}
+                onChange={(e) => setEditFormData({ ...editFormData, limite_credito: e.target.value })}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" className="w-full">
+                Salvar Alterações
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

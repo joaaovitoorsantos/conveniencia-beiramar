@@ -35,6 +35,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         [id]
       );
 
+      console.log('Cliente:', cliente[0]);
+
       // Buscar contas a receber com seus pagamentos
       const [contas] = await pool.query(
         `SELECT 
@@ -66,11 +68,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         [id]
       );
 
+      console.log('Contas a receber:', contas);
+
       // Formatar os pagamentos
       const contasFormatadas = contas.map((conta: any) => ({
         ...conta,
         pagamentos: conta.pagamentos ? JSON.parse(`[${conta.pagamentos}]`) : []
       }));
+
+      contasFormatadas.forEach((conta: any) => {
+        console.log('Conta:', conta.id, 'Valor:', conta.valor, 'Total Pago:', conta.total_pago, 'Pagamentos:', conta.pagamentos);
+      });
 
       // Buscar compras do cliente
       const [compras] = await pool.query(`
