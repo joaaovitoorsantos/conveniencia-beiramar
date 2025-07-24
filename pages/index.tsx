@@ -477,10 +477,10 @@ function PDVComponent() {
 
   // Nova função para confirmar a venda dentro do modal
   const confirmarVenda = async () => {
-    // Verificar se tem alguma forma de pagamento sem valor
-    const hasEmptyPayment = paymentMethods.some(p => !p.amount || p.amount <= 0);
-    if (hasEmptyPayment) {
-      toast.error('Todas as formas de pagamento devem ter um valor');
+    // Verificar se todos os métodos de pagamento têm forma e valor
+    const hasInvalidPayment = paymentMethods.some(p => !p.method || !p.amount || p.amount <= 0);
+    if (hasInvalidPayment) {
+      toast.error('Preencha a forma de pagamento e o valor para todos os métodos.');
       return;
     }
 
@@ -1082,7 +1082,9 @@ function PDVComponent() {
                                 onValueChange={(value) => {
                                   updatePaymentMethod(payment.id, 'method', value);
                                   // Foca automaticamente no input de valor
-                                  document.getElementById(`payment-amount-${payment.id}`)?.focus();
+                                  setTimeout(() => {
+                                    document.getElementById(`payment-amount-${payment.id}`)?.focus();
+                                  }, 100);
                                 }}
                               >
                                 <SelectTrigger>
@@ -1114,6 +1116,7 @@ function PDVComponent() {
                                   handlePaymentKeyDown(e, payment.id, index);
                                 }}
                                 placeholder="0,00"
+                                disabled={!payment.method}
                               />
                             </div>
                             {index > 0 && (
@@ -1253,7 +1256,8 @@ function PDVComponent() {
                         disabled={
                           loading ||
                           remaining > 0 ||
-                          paymentMethods.some(p => !p.amount || p.amount <= 0) ||
+                          paymentMethods.length === 0 ||
+                          paymentMethods.some(p => !p.amount || p.amount <= 0 || !p.method) ||
                           paymentMethods.some(p => p.method === 'convenio' && !p.clientId)
                         }
                       >

@@ -37,7 +37,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
-      console.log('Filtro de data aplicado:', dateFilter);
 
       // Buscar caixas
       const [caixas] = await pool.query<RowDataPacket[]>(`
@@ -138,7 +137,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       `);
 
       // Adicionar query para totais por forma de pagamento
-      console.log('Iniciando busca de formas de pagamento...');
       const [totaisPorFormaPagamento] = await pool.query<RowDataPacket[]>(`
         SELECT 
           COALESCE(pv.forma_pagamento, 'não informado') as forma_pagamento,
@@ -152,17 +150,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ORDER BY valor_total DESC
       `);
 
-      console.log('Resultado bruto das formas de pagamento:', JSON.stringify(totaisPorFormaPagamento, null, 2));
-      console.log('Número de formas de pagamento encontradas:', totaisPorFormaPagamento.length);
-      
-      // Log detalhado de cada forma de pagamento
-      totaisPorFormaPagamento.forEach((pagamento, index) => {
-        console.log(`Forma de Pagamento ${index + 1}:`, {
-          forma: pagamento.forma_pagamento,
-          quantidade: pagamento.quantidade_pagamentos,
-          total: pagamento.valor_total
-        });
-      });
 
       res.status(200).json({
         caixas, // agora cada caixa tem .formas_pagamento

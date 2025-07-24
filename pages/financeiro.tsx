@@ -217,39 +217,6 @@ export default function Financeiro() {
     });
   };
 
-  const getStatusBadge = (caixa: CashRegister) => {
-    const isOpen = !caixa.data_fechamento;
-    return (
-      <Badge variant={isOpen ? 'default' : 'secondary'} className={
-        isOpen 
-          ? 'bg-green-100 text-green-800 hover:bg-green-200'
-          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-      }>
-        {isOpen ? 'Aberto' : 'Fechado'}
-      </Badge>
-    );
-  };
-
-  const handleSort = (field: string) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('desc');
-    }
-  };
-
-  const getSortIcon = (field: string) => {
-    if (sortBy !== field) return null;
-    return sortOrder === 'asc' ? '↑' : '↓';
-  };
-
-  const clearFilters = () => {
-    setSearchTerm('');
-    setStatusFilter('todos');
-    setOperadorFilter('todos');
-  };
-
   const formatarFormaPagamento = (forma: string) => {
     const formatos: { [key: string]: string } = {
       dinheiro: 'Dinheiro',
@@ -345,23 +312,7 @@ export default function Financeiro() {
           <Card className="p-4 bg-yellow-50">
             <div className="text-sm text-gray-500">Total em Caixa</div>
             <div className="text-2xl font-bold text-yellow-600">
-              {(() => {
-                const total = caixas.reduce((total, c) => {
-                  // Converter para número e validar
-                  const valorFinal = parseFloat(c.valor_final as any) || 0;
-                  const valorInicial = parseFloat(c.valor_inicial as any) || 0;
-                  
-                  // Usar valor final se for maior que 0, senão usar valor inicial
-                  const valor = valorFinal > 0 ? valorFinal : valorInicial;
-                  
-                  console.log(`Caixa ${c.id}: Final=${c.valor_final}, Inicial=${c.valor_inicial}, Usado=${valor}`);
-                  
-                  return total + valor;
-                }, 0);
-                
-                console.log('Total final:', total);
-                return formatCurrency(total);
-              })()}
+              {formatCurrency(estatisticas.totalVendas)}
             </div>
           </Card>
         </div>
@@ -462,30 +413,6 @@ export default function Financeiro() {
                 </div>
                 <div className="text-purple-400">
                   <User className="w-6 h-6" />
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-orange-700 uppercase tracking-wide">Saldo</p>
-                  <p className="text-lg font-bold text-orange-900">{formatCurrency(estatisticas.saldoTotal)}</p>
-                </div>
-                <div className="text-orange-400">
-                  <Wallet className="w-6 h-6" />
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-gradient-to-br from-teal-50 to-teal-100 p-4 rounded-lg border border-teal-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-teal-700 uppercase tracking-wide">Lucro</p>
-                  <p className="text-lg font-bold text-teal-900">{formatCurrency(estatisticas.lucroBruto)}</p>
-                </div>
-                <div className="text-teal-400">
-                  <DollarSign className="w-6 h-6" />
                 </div>
               </div>
             </div>
