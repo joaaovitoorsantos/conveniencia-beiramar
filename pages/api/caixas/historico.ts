@@ -68,6 +68,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ORDER BY c.data_abertura DESC
       `);
 
+      // Para cada caixa, buscar as formas de pagamento agrupadas
+      for (const caixa of caixas) {
+        const [formasPagamento] = await pool.query<RowDataPacket[]>(`
+          SELECT 
+            pv.forma_pagamento,
+            COUNT(*) as quantidade_pagamentos,
+            SUM(pv.valor) as valor_total
+          FROM pagamentos_venda pv
+          INNER JOIN vendas v ON v.id = pv.venda_id
+          WHERE v.caixa_id = ?
+          GROUP BY pv.forma_pagamento
+        `, [caixa.id]);
+        caixa.formas_pagamento = formasPagamento;
+      }
+
       // Calcular estatísticas
       const [estatisticas] = await pool.query<RowDataPacket[]>(`
         SELECT 
@@ -150,7 +165,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
 
       res.status(200).json({
-        caixas,
+        caixas, // agora cada caixa tem .formas_pagamento
         estatisticas: {
           totalVendas: Number(estatisticas[0].total_vendas),
           mediaVendas: Number(estatisticas[0].media_vendas),

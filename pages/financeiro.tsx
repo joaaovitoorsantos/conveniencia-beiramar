@@ -36,6 +36,11 @@ interface CashRegister {
   operador_email: string;
   observacoes?: string;
   criado_em: string;
+  formas_pagamento?: {
+    forma_pagamento: string;
+    quantidade_pagamentos: number;
+    valor_total: number;
+  }[];
 }
 
 interface Usuario {
@@ -68,7 +73,7 @@ export default function Financeiro() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [formasPagamento, setFormasPagamento] = useState<FormaPagamento[]>([]);
+  // Não usamos mais formasPagamento global, pois agora vem por caixa
   const [estatisticas, setEstatisticas] = useState<EstatisticasCaixa>({
     totalVendas: 0,
     mediaVendas: 0,
@@ -131,14 +136,11 @@ export default function Financeiro() {
     try {
       setLoadingEstatisticas(true);
       const dataParaBuscar = data || dataSelecionada;
-      
-      console.log('Buscando estatísticas para a data:', dataParaBuscar);
-      
       const response = await fetch(`/api/caixas/historico?data=${dataParaBuscar}`);
       if (response.ok) {
         const data = await response.json();
-        console.log('Dados recebidos:', data);
-        setFormasPagamento(data.totaisPorFormaPagamento || []);
+        // Atualiza caixas do dia (cada um com formas_pagamento)
+        setCaixas(data.caixas || []);
         setEstatisticas(data.estatisticas || {
           totalVendas: 0,
           mediaVendas: 0,
@@ -489,113 +491,128 @@ export default function Financeiro() {
             </div>
           </div>
 
-          {/* Formas de Pagamento */}
+          {/* Formas de Pagamento por Caixa */}
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-blue-600" />
-                Formas de Pagamento
-              </h3>
-              <span className="text-sm text-gray-500">
-                {formasPagamento.length} forma{formasPagamento.length !== 1 ? 's' : ''} de pagamento
-              </span>
+            <div className="flex items-center gap-2 mb-4">
+              <CreditCard className="w-5 h-5 text-blue-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Formas de Pagamento por Caixa</h3>
             </div>
-            
-            {formasPagamento.length > 0 ? (
-              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Forma de Pagamento
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Quantidade
-                        </th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Valor Total
-                        </th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Média
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {formasPagamento.map((forma, index) => (
-                        <tr key={index} className="hover:bg-gray-50 transition-colors duration-150">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-blue-100 rounded-lg">
-                                {getFormaPagamentoIcon(forma.forma_pagamento)}
-                              </div>
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">
-                                  {formatarFormaPagamento(forma.forma_pagamento)}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {forma.quantidade_pagamentos || 0}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <div className="text-sm font-semibold text-green-600">
-                              {formatCurrency(parseFloat(forma.valor_total as any) || 0)}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <div className="text-sm text-gray-600">
-                              {(() => {
-                                const valor = parseFloat(forma.valor_total as any) || 0;
-                                const quantidade = forma.quantidade_pagamentos || 0;
-                                const media = quantidade > 0 ? valor / quantidade : 0;
-                                return formatCurrency(media);
-                              })()}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-gray-50 border-t border-gray-200">
-                      <tr>
-                        <td className="px-6 py-3 text-sm font-medium text-gray-900">
-                          Total Geral
-                        </td>
-                        <td className="px-6 py-3 text-center">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                            {formasPagamento.reduce((total, forma) => total + (forma.quantidade_pagamentos || 0), 0)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3 text-right">
-                          <div className="text-sm font-bold text-green-600">
-                            {formatCurrency(formasPagamento.reduce((total, forma) => total + (parseFloat(forma.valor_total as any) || 0), 0))}
-                          </div>
-                        </td>
-                        <td className="px-6 py-3 text-right">
-                          <div className="text-sm font-medium text-gray-600">
-                            {(() => {
-                              const totalValor = formasPagamento.reduce((total, forma) => total + (parseFloat(forma.valor_total as any) || 0), 0);
-                              const totalQuantidade = formasPagamento.reduce((total, forma) => total + (forma.quantidade_pagamentos || 0), 0);
-                              const media = totalQuantidade > 0 ? totalValor / totalQuantidade : 0;
-                              return formatCurrency(media);
-                            })()}
-                          </div>
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            ) : (
+            {caixas.length === 0 ? (
               <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
                 <CreditCard className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                 <p className="text-gray-500 font-medium">Nenhum pagamento registrado</p>
                 <p className="text-sm text-gray-400 mt-1">
                   em {new Date(dataSelecionada).toLocaleDateString('pt-BR')}
                 </p>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {caixas.map((caixa, idx) => (
+                  <div key={caixa.id} className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-2 gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-blue-700">Caixa {idx + 1}</span>
+                        <span className="text-gray-500 text-sm">ID: {caixa.id.substring(0, 8)}...</span>
+                        <span className="text-gray-500 text-sm">Operador: {caixa.operador_nome}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span>Abertura: {formatDateShort(caixa.data_abertura)} {formatTime(caixa.data_abertura)}</span>
+                        {caixa.data_fechamento && (
+                          <span>Fechamento: {formatDateShort(caixa.data_fechamento)} {formatTime(caixa.data_fechamento)}</span>
+                        )}
+                      </div>
+                    </div>
+                    {(caixa.formas_pagamento && caixa.formas_pagamento.length > 0) ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Forma de Pagamento
+                              </th>
+                              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Quantidade
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Valor Total
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Média
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {caixa.formas_pagamento.map((forma: any, index: number) => (
+                              <tr key={index} className="hover:bg-gray-50 transition-colors duration-150">
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-blue-100 rounded-lg">
+                                      {getFormaPagamentoIcon(forma.forma_pagamento)}
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">
+                                        {formatarFormaPagamento(forma.forma_pagamento)}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-center">
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    {forma.quantidade_pagamentos || 0}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                  <div className="text-sm font-semibold text-green-600">
+                                    {formatCurrency(parseFloat(forma.valor_total as any) || 0)}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                  <div className="text-sm text-gray-600">
+                                    {(() => {
+                                      const valor = parseFloat(forma.valor_total as any) || 0;
+                                      const quantidade = forma.quantidade_pagamentos || 0;
+                                      const media = quantidade > 0 ? valor / quantidade : 0;
+                                      return formatCurrency(media);
+                                    })()}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="bg-gray-50 border-t border-gray-200">
+                            <tr>
+                              <td className="px-6 py-3 text-sm font-medium text-gray-900">
+                                Total Geral
+                              </td>
+                              <td className="px-6 py-3 text-center">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                  {caixa.formas_pagamento.reduce((total: number, forma: any) => total + (forma.quantidade_pagamentos || 0), 0)}
+                                </span>
+                              </td>
+                              <td className="px-6 py-3 text-right">
+                                <div className="text-sm font-bold text-green-600">
+                                  {formatCurrency(caixa.formas_pagamento.reduce((total: number, forma: any) => total + (parseFloat(forma.valor_total as any) || 0), 0))}
+                                </div>
+                              </td>
+                              <td className="px-6 py-3 text-right">
+                                <div className="text-sm font-medium text-gray-600">
+                                  {(() => {
+                                    const totalValor = caixa.formas_pagamento.reduce((total: number, forma: any) => total + (parseFloat(forma.valor_total as any) || 0), 0);
+                                    const totalQuantidade = caixa.formas_pagamento.reduce((total: number, forma: any) => total + (forma.quantidade_pagamentos || 0), 0);
+                                    const media = totalQuantidade > 0 ? totalValor / totalQuantidade : 0;
+                                    return formatCurrency(media);
+                                  })()}
+                                </div>
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-400">Nenhum pagamento registrado neste caixa</div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>
