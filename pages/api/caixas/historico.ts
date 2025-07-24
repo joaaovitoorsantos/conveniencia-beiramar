@@ -89,30 +89,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           COALESCE(SUM(v.valor_final), 0) as total_vendas,
           COALESCE(AVG(v.valor_final), 0) as media_vendas,
           COUNT(DISTINCT c.id) as total_caixas,
-          COALESCE(
-            (
-              SELECT SUM(valor_final - valor_inicial)
-              FROM caixas 
-              WHERE data_fechamento IS NOT NULL
-              AND data_abertura >= (
-                SELECT MAX(data_abertura) 
-                FROM caixas 
-                WHERE data_fechamento IS NULL
-              )
-            ), 
-            0
-          ) as saldo_total,
-          COALESCE(
-            SUM(
-              (
-                SELECT SUM(iv.quantidade * (iv.preco_venda - COALESCE(p.preco_custo, 0)))
-                FROM itens_venda iv
-                LEFT JOIN produtos p ON iv.produto_id = p.id
-                WHERE iv.venda_id = v.id
-              )
-            ),
-            0
-          ) as lucro_bruto
+          (
+            SELECT COALESCE(SUM(caixa.valor_inicial), 0) + COALESCE(SUM(venda.valor_final), 0)
+            FROM caixas caixa
+            LEFT JOIN vendas venda ON venda.caixa_id = caixa.id
+            WHERE ${dateFilter}
+          ) as saldo_total
         FROM caixas c
         LEFT JOIN vendas v ON v.caixa_id = c.id
         WHERE ${dateFilter}
@@ -170,11 +152,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           totalVendas: Number(estatisticas[0].total_vendas),
           mediaVendas: Number(estatisticas[0].media_vendas),
           totalCaixas: Number(estatisticas[0].total_caixas),
-          saldoTotal: Number(estatisticas[0].saldo_total),
-          lucroBruto: Number(estatisticas[0].lucro_bruto)
+          saldoTotal: Number(estatisticas[0].saldo_total)
         },
-        produtosMaisVendidos,
-        totaisPorFormaPagamento
+        produtosMaisVendidos
       });
     } catch (error) {
       console.error('Erro ao buscar histórico:', error);
