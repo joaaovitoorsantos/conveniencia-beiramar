@@ -1,33 +1,56 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { jwtVerify } from 'jose';
 
-export function middleware(request: NextRequest) {
-    // Páginas que não precisam de autenticação
-    const publicPages = ['/login'];
-    // Páginas que precisam de autenticação (todas exceto as públicas)
-    const isPublicPage = publicPages.some(page => request.nextUrl.pathname === page);
+const PUBLIC_PAGES = ['/login', '/test-auth'];
+const AUTH_PAGES = ['/login'];
 
-    // Verifica se existe o token de autenticação
-    const token = request.cookies.get('auth_token')?.value;
+const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'sua-chave-secreta-super-segura');
 
-    // Se estiver em uma página pública (login) e já estiver autenticado, redireciona para o dashboard
-    if (isPublicPage && token) {
-        const dashboardUrl = new URL('/', request.url);
-        return NextResponse.redirect(dashboardUrl);
-    }
-
-    // Se não for uma página pública e não houver token, redireciona para o login
-    if (!isPublicPage && !token) {
-        const loginUrl = new URL('/login', request.url);
-        return NextResponse.redirect(loginUrl);
-    }
-
-    return NextResponse.next();
+async function verifyJWT(token: string) {
+  try {
+    const { payload } = await jwtVerify(token, secret);
+    return payload;
+  } catch (error) {
+    return null;
+  }
 }
 
-// Configura em quais caminhos o middleware será executado
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const token = request.cookies.get('auth_token')?.value;
+
+
+
+  const isPublicPage = PUBLIC_PAGES.includes(pathname);
+  const isAuthPage = AUTH_PAGES.includes(pathname);
+
+  // Verificar token se presente
+  const payload = token ? await verifyJWT(token) : null;
+
+  // Se é página de auth e tem token válido, redirecionar para home
+  if (isAuthPage && payload) {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  // Se não é página pública e não tem token válido, redirecionar para login
+  if (!isPublicPage && !payload) {
+    // Se tem token inválido, remover o cookie
+    if (token) {
+      const response = NextResponse.redirect(new URL('/login', request.url));
+      response.cookies.delete('auth_token');
+      return response;
+    }
+    
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  // Permitir acesso
+  return NextResponse.next();
+}
+
 export const config = {
-    matcher: [
-        '/((?!api|_next/static|_next/image|favicon.ico|public|.*\\.(?:jpg|jpeg|gif|png|svg|ico|webp)).*)',
-    ],
-}; 
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico|public|.*\\.(?:jpg|jpeg|gif|png|svg|ico|webp)).*)',
+  ],
+};

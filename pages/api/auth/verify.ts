@@ -13,6 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Pegar o token do cookie
     const token = req.cookies.auth_token;
 
+
     if (!token) {
       return res.status(401).json({ error: 'Token não encontrado' });
     }
@@ -29,10 +30,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         perfilId: decoded.perfilId,
         permissoes: decoded.permissoes
       },
-      token: token
+      token: token,
+      valid: true
     });
   } catch (error) {
-    console.error('Erro ao verificar token:', error);
-    res.status(401).json({ error: 'Token inválido' });
+    res.status(401).json({ error: 'Token inválido', valid: false });
   }
 } 

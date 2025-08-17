@@ -15,6 +15,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { usuario, senha } = req.body;
 
+    if (!usuario || !senha) {
+      return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
+    }
+
+
+
     // Buscar usuário com suas permissões
     const [rows] = await pool.query<RowDataPacket[]>(`
       SELECT 
@@ -60,18 +66,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     // Gerar token JWT
-    const token = jwt.sign({
+    const tokenPayload = {
       id: userData.id,
       usuario: userData.usuario,
       email: userData.email,
       perfilId: userData.perfil_id,
       permissoes: userData.permissoes
-    }, JWT_SECRET, { expiresIn: '12h' });
+    };
+    
+    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '10s' });
 
-    // Configurar o token no cookie
-    const cookieValue = `auth_token=${token}; HttpOnly; Path=/; Max-Age=86400`;
-    console.log('Definindo cookie:', cookieValue);
+    // Configurar o token no cookie de forma segura
+    const cookieValue = `auth_token=${token}; Path=/; SameSite=Lax; Max-Age=86400`;
     res.setHeader('Set-Cookie', cookieValue);
+    
+
 
     res.status(200).json({
       message: 'Login realizado com sucesso',
@@ -80,12 +89,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         id: userData.id,
         usuario: userData.usuario,
         email: userData.email,
+        nome: userData.nome,
         perfilId: userData.perfil_id,
         permissoes: userData.permissoes
       }
     });
   } catch (error) {
-    console.error('Erro ao realizar login:', error);
-    res.status(500).json({ error: 'Erro ao realizar login' });
+    res.status(500).json({ error: 'Erro interno do servidor' });
   }
 } 

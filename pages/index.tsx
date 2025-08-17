@@ -158,7 +158,8 @@ const formatarFormaPagamento = (forma: string) => {
 // Componente PDV
 function PDVComponent() {
   const router = useRouter();
-  const { user, hasPermission, logout } = useAuth();
+  const { user, hasPermission, logout, loading } = useAuth();
+
 
   // Todos os estados
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -170,7 +171,7 @@ function PDVComponent() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [quantity, setQuantity] = useState<number>(1);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [apiLoading, setApiLoading] = useState(false);
   const [barcodeInput, setBarcodeInput] = useState("");
   const [caixaAtual, setCaixaAtual] = useState<string | null>(null);
   const [isOpenCaixaDialog, setIsOpenCaixaDialog] = useState(false);
@@ -197,7 +198,7 @@ function PDVComponent() {
     setPaymentMethods(paymentMethods.map(method => {
       if (method.id === id) {
         if (field === 'method') {
-          console.log('Atualizando método de pagamento:', value);
+
           if (value === 'convenio') {
             setOpenCombobox(true);
             return { ...method, method: 'convenio', clientId: undefined };
@@ -210,14 +211,6 @@ function PDVComponent() {
       return method;
     }));
   };
-
-  // useEffects
-  useEffect(() => {
-    if (user && !hasPermission('pdv')) {
-      toast.error('Você não tem permissão para acessar o PDV');
-      router.replace('/login');
-    }
-  }, [user, hasPermission, router]);
 
   useEffect(() => {
     if (isSearchOpen) {
@@ -351,13 +344,13 @@ function PDVComponent() {
   // Função para buscar todos os produtos
   const fetchProducts = async () => {
     try {
-      setLoading(true);
+      setApiLoading(true);
       const response = await axios.get('/api/produtos');
       setProducts(response.data);
     } catch (error) {
       toast.error('Erro ao carregar produtos');
     } finally {
-      setLoading(false);
+      setApiLoading(false);
     }
   };
 
@@ -506,7 +499,7 @@ function PDVComponent() {
     }
 
     try {
-      setLoading(true);
+      setApiLoading(true);
 
       const saleData = {
         items: cartItems,
@@ -528,7 +521,7 @@ function PDVComponent() {
       }
 
       const response = await axios.post('/api/vendas', saleData);
-      
+
       // Guarda os dados da venda para impressão
       setCurrentSaleData({
         items: cartItems,
@@ -546,18 +539,18 @@ function PDVComponent() {
       setDiscount({ type: 'fixed', value: 0 });
       setSelectedClient(null);
       setIsFinalizingOpen(false);
-      
+
       // Abre o modal de impressão
       setIsPrintModalOpen(true);
 
       // Recarrega as últimas vendas
       fetchUltimasVendas();
-      
+
     } catch (error) {
       console.error('Erro ao finalizar venda:', error);
       toast.error('Erro ao finalizar venda');
     } finally {
-      setLoading(false);
+      setApiLoading(false);
     }
   };
 
@@ -682,9 +675,9 @@ function PDVComponent() {
 
           <div class="total">
             <div>Subtotal: R$ ${currentSaleData.total.toFixed(2)}</div>
-            ${currentSaleData.discount > 0 ? 
-              `<div>Desconto: R$ ${currentSaleData.discount.toFixed(2)}</div>` : 
-              ''}
+            ${currentSaleData.discount > 0 ?
+        `<div>Desconto: R$ ${currentSaleData.discount.toFixed(2)}</div>` :
+        ''}
             <div class="total-final">Total: R$ ${(currentSaleData.total - currentSaleData.discount).toFixed(2)}</div>
           </div>
 
@@ -719,10 +712,14 @@ function PDVComponent() {
     printWindow.close();
   }, [currentSaleData]);
 
-    // Se não houver usuário, não renderiza nada
-    if (!user || loading) {
-      return null;
-    }
+  // Se estiver carregando, mostrar loading
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-lg">Carregando...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
@@ -739,8 +736,8 @@ function PDVComponent() {
 
         <div className="flex gap-2">
           {hasPermission('estoque') && (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => router.push('/estoque')}
               className="flex items-center gap-2"
             >
@@ -750,8 +747,8 @@ function PDVComponent() {
           )}
 
           {hasPermission('vendas') && (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => router.push('/caixas')}
               className="flex items-center gap-2"
             >
@@ -761,8 +758,8 @@ function PDVComponent() {
           )}
 
           {hasPermission('financeiro') && (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => router.push('/financeiro')}
               className="flex items-center gap-2"
             >
@@ -772,8 +769,8 @@ function PDVComponent() {
           )}
 
           {hasPermission('vendas') && (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => router.push('/vendas')}
               className="flex items-center gap-2"
             >
@@ -783,8 +780,8 @@ function PDVComponent() {
           )}
 
           {hasPermission('vendas') && (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => router.push('/clientes')}
               className="flex items-center gap-2"
             >
@@ -795,8 +792,8 @@ function PDVComponent() {
 
 
           {hasPermission('estoque') && (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => router.push('/fornecedores')}
               className="flex items-center gap-2"
             >
@@ -806,8 +803,8 @@ function PDVComponent() {
           )}
 
           {hasPermission('configuracoes') && (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => router.push('/configuracoes')}
               className="flex items-center gap-2"
             >
@@ -1058,9 +1055,9 @@ function PDVComponent() {
                     setIsFinalizingOpen(true);
                     addPaymentMethod();
                   }}
-                  disabled={loading}
+                  disabled={apiLoading}
                 >
-                  {loading ? 'Finalizando...' : 'Finalizar Venda (F2)'}
+                  {apiLoading ? 'Finalizando...' : 'Finalizar Venda (F2)'}
                 </Button>
                 <DialogContent>
                   <DialogHeader>
@@ -1177,7 +1174,7 @@ function PDVComponent() {
                                           </div>
                                           <div className="ml-auto text-sm">
                                             <span className={Number(cliente.valor_devido) > 0 ? "text-red-600" : "text-green-600"}>
-                                              {Number(cliente.valor_devido) > 0 
+                                              {Number(cliente.valor_devido) > 0
                                                 ? `Deve: R$ ${Number(cliente.valor_devido).toFixed(2)}`
                                                 : "Sem débitos"}
                                             </span>
@@ -1221,13 +1218,13 @@ function PDVComponent() {
                       <div>
                         <Label>Restante</Label>
                         <div className={`text-2xl font-bold ${remaining > 0 ? 'text-red-600' :
-                            remaining < 0 ? 'text-green-600' : ''
+                          remaining < 0 ? 'text-green-600' : ''
                           }`}>
                           R$ {remaining.toFixed(2)}
                         </div>
                       </div>
                       {remaining < 0 && (
-    <div>
+                        <div>
                           <Label>Troco</Label>
                           <div className="text-2xl font-bold text-green-600">
                             R$ {Math.abs(remaining).toFixed(2)}
@@ -1312,7 +1309,7 @@ function PDVComponent() {
                     </div>
                   ))}
                 </TableCell>
-              
+
                 <TableCell>
                   <div className="text-sm space-y-1">
                     {(venda.itens || []).map((item, index) => (
@@ -1325,11 +1322,10 @@ function PDVComponent() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <span className={`px-2 py-1 rounded-full text-xs ${
-                    venda.status === 'concluida' ? 'bg-green-100 text-green-800' :
-                    venda.status === 'cancelada' ? 'bg-red-100 text-red-800' :
-                    'bg-yellow-100 text-yellow-800'
-                  }`}>
+                  <span className={`px-2 py-1 rounded-full text-xs ${venda.status === 'concluida' ? 'bg-green-100 text-green-800' :
+                      venda.status === 'cancelada' ? 'bg-red-100 text-red-800' :
+                        'bg-yellow-100 text-yellow-800'
+                    }`}>
                     {formatStatus(venda.status)}
                   </span>
                 </TableCell>
@@ -1388,13 +1384,13 @@ function PDVComponent() {
             <p>Deseja imprimir o cupom desta venda?</p>
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setIsPrintModalOpen(false)}
             >
               Não (Backspace)
             </Button>
-            <Button 
+            <Button
               onClick={() => {
                 handlePrint();
                 setIsPrintModalOpen(false);
