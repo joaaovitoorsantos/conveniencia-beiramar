@@ -74,7 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       permissoes: userData.permissoes
     };
     
-    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '10s' });
+    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '8h' });
 
     // Configurar o token no cookie de forma segura
     const cookieValue = `auth_token=${token}; Path=/; SameSite=Lax; Max-Age=86400`;
