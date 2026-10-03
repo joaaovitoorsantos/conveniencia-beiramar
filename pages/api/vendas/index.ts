@@ -144,12 +144,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       for (const item of items) {
         await connection.query<ResultSetHeader>(
           `INSERT INTO itens_venda (
-            venda_id, produto_id, quantidade, valor_total
-          ) VALUES (?, ?, ?, ?)`,
+            venda_id, produto_id, quantidade, preco_venda, valor_total
+          ) VALUES (?, ?, ?, ?, ?)`,
           [
             vendaId,
             item.productId,
             item.quantity,
+            item.price,
             item.total
           ]
         );
